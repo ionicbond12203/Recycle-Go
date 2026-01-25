@@ -2,19 +2,44 @@ import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth, UserRole } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 
 export default function CompleteProfileScreen() {
-    const { user, profile, refreshProfile, signOut } = useAuth();
+    const { user, profile, refreshProfile, signOut, userRole: authRole, setAdminRole } = useAuth();
     const { colors } = useTheme();
     const insets = useSafeAreaInsets();
     const router = useRouter();
 
     const [fullName, setFullName] = useState(profile?.full_name || user?.user_metadata?.full_name || '');
     const [contactNumber, setContactNumber] = useState(profile?.contact_number || '');
+    // If user already has a role (e.g. admin from invite/dev), preserve it. Default to contributor otherwise.
+    const [role, setRole] = useState<UserRole>(authRole || profile?.role || 'contributor');
     const [loading, setLoading] = useState(false);
+    const [showAdmin, setShowAdmin] = useState(false);
+    const lastTapRef = React.useRef<number>(0);
+    const tapsRef = React.useRef<number>(0);
+
+    const handleTitlePress = () => {
+        const now = Date.now();
+        if (now - lastTapRef.current < 1000) {
+            tapsRef.current += 1;
+        } else {
+            tapsRef.current = 1;
+        }
+        lastTapRef.current = now;
+
+        if (tapsRef.current >= 5) {
+            setShowAdmin(prev => !prev);
+            tapsRef.current = 0;
+            // Vibration feedback
+            try {
+                const { Vibration } = require('react-native');
+                Vibration.vibrate(100);
+            } catch (e) { }
+        }
+    };
 
     const handleSave = async () => {
         if (!fullName.trim() || !contactNumber.trim()) {
@@ -30,6 +55,7 @@ export default function CompleteProfileScreen() {
                 .update({
                     full_name: fullName.trim(),
                     contact_number: contactNumber.trim(),
+                    role: role
                 })
                 .eq('id', user?.id);
 
@@ -63,13 +89,59 @@ export default function CompleteProfileScreen() {
             >
                 <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}>
                     <View style={styles.header}>
-                        <Text style={[styles.title, { color: colors.text }]}>Complete Profile</Text>
+                        <Text style={[styles.title, { color: colors.text }]} onPress={handleTitlePress}>Complete Profile</Text>
                         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
                             Please provide your details to continue using Recycle Go.
                         </Text>
                     </View>
 
                     <View style={styles.form}>
+                        {/* Role Selection */}
+                        <View style={{ marginBottom: 24 }}>
+                            <Text style={[styles.label, { color: colors.text }]}>I am a:</Text>
+
+                            {/* Special handling for Admin - Read Only */}
+                            {role === 'admin' ? (
+                                <View style={[styles.roleOption, { borderColor: colors.primary, backgroundColor: colors.primaryLight }]}>
+                                    <View style={{ alignItems: 'center', gap: 4 }}>
+                                        <Text style={{ fontSize: 24 }}>🛡️</Text>
+                                        <Text style={[styles.roleText, { color: colors.text }]}>Administrator</Text>
+                                        <Text style={[styles.roleSubText, { color: colors.textSecondary }]}>System Access</Text>
+                                    </View>
+                                </View>
+                            ) : (
+                                <View style={{ flexDirection: 'row', gap: 10 }}>
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.roleOption,
+                                            { borderColor: colors.primary, backgroundColor: role === 'contributor' ? colors.primary : 'transparent' }
+                                        ]}
+                                        onPress={() => setRole('contributor')}
+                                    >
+                                        <View style={{ alignItems: 'center', gap: 4 }}>
+                                            <Text style={{ fontSize: 24 }}>🌿</Text>
+                                            <Text style={[styles.roleText, { color: role === 'contributor' ? '#fff' : colors.text }]}>Recycle</Text>
+                                            <Text style={[styles.roleSubText, { color: role === 'contributor' ? '#eee' : colors.textSecondary }]}>Contributor</Text>
+                                        </View>
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.roleOption,
+                                            { borderColor: colors.primary, backgroundColor: role === 'collector' ? colors.primary : 'transparent' }
+                                        ]}
+                                        onPress={() => setRole('collector')}
+                                    >
+                                        <View style={{ alignItems: 'center', gap: 4 }}>
+                                            <Text style={{ fontSize: 24 }}>🚛</Text>
+                                            <Text style={[styles.roleText, { color: role === 'collector' ? '#fff' : colors.text }]}>Collect</Text>
+                                            <Text style={[styles.roleSubText, { color: role === 'collector' ? '#eee' : colors.textSecondary }]}>Collector</Text>
+                                        </View>
+                                    </TouchableOpacity>
+                                </View>
+                            )}
+                        </View>
+
                         <View style={styles.inputGroup}>
                             <Text style={[styles.label, { color: colors.text }]}>Full Name</Text>
                             <TextInput
@@ -86,13 +158,42 @@ export default function CompleteProfileScreen() {
                             <Text style={[styles.label, { color: colors.text }]}>Contact Number</Text>
                             <TextInput
                                 style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text, borderColor: colors.border }]}
-                                placeholder="Enter your contact number"
+                                placeholder="+60 12-345 6789"
                                 placeholderTextColor={colors.textSecondary}
                                 value={contactNumber}
                                 onChangeText={setContactNumber}
                                 keyboardType="phone-pad"
                             />
                         </View>
+
+                        {showAdmin && (
+                            <TouchableOpacity
+                                style={{
+                                    padding: 15,
+                                    backgroundColor: colors.primary,
+                                    borderRadius: 12,
+                                    marginBottom: 20,
+                                    width: '100%',
+                                    alignItems: 'center',
+                                    flexDirection: 'row',
+                                    justifyContent: 'center',
+                                    gap: 10
+                                }}
+                                onPress={async () => {
+                                    try {
+                                        setLoading(true);
+                                        await setAdminRole();
+                                        router.replace('/admin/dashboard');
+                                    } catch (e) {
+                                        console.error(e);
+                                    } finally {
+                                        setLoading(false);
+                                    }
+                                }}
+                            >
+                                <Text style={{ color: '#fff', fontWeight: 'bold' }}>⭐ Promote Current User to Admin</Text>
+                            </TouchableOpacity>
+                        )}
 
                         <TouchableOpacity
                             style={[styles.saveButton, { backgroundColor: colors.primary }]}
@@ -186,5 +287,24 @@ const styles = StyleSheet.create({
     signOutText: {
         fontSize: 16,
         fontWeight: '600',
+    },
+    // Role Selection Styles
+    roleOption: {
+        flex: 1,
+        borderWidth: 2,
+        borderRadius: 12,
+        paddingVertical: 15,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#fff',
+    },
+    roleText: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        marginTop: 4,
+    },
+    roleSubText: {
+        fontSize: 12,
+        marginTop: 2,
     },
 });
