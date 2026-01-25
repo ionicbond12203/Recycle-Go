@@ -44,7 +44,7 @@ Recycle Go makes recycling effortless by using **Google Cloud Vision AI** to ins
 
 1.  **Clone the repository**
     ```bash
-    https://github.com/ionicbond12203/Recycle-Go.git
+    git clone https://github.com/ionicbond12203/Recycle-Go.git
     cd recycle-go
     ```
 
