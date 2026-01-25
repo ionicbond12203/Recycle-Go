@@ -72,11 +72,11 @@ Recycle Go makes recycling effortless by using **Google Cloud Vision AI** to ins
 
 ---
 
-<!-- 
-## 📸 Screenshots
+## 📸 Demo
 
-*(Place your screenshots here. Recommended: 1. Home Screen, 2. AI Scanner, 3. Map View)*
--->
+<p align="center">
+  <img src="./assets/images/demo.gif" alt="App Demo" width="300"/>
+</p>
 
 ## 📄 License
 
