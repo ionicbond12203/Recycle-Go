@@ -1,6 +1,6 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import React from "react";
-import { ActivityIndicator, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -74,7 +74,7 @@ export default function TrackingView({
                     destination={userLocation}
                     apikey={GOOGLE_MAPS_API_KEY}
                     strokeWidth={5}
-                    strokeColor={colors.trackingPink}
+                    strokeColor={colors.trackingBlue}
                     optimizeWaypoints={true}
                     onReady={(result) => setRouteInfo({ distance: result.distance, duration: result.duration })}
                 />
@@ -96,17 +96,8 @@ export default function TrackingView({
                 <Text style={[styles.sheetTitle, { color: colors.text }]}>{t('tracking.confirmPickup')}</Text>
             </View>
             <Text style={[styles.confirmText, { color: colors.textSecondary }]}>
-                {t('tracking.shareInstruction')}
+                Your location will be shared automatically when you request a pickup from the cart.
             </Text>
-
-            <TouchableOpacity style={[styles.mainActionButton, { backgroundColor: colors.primary, shadowColor: colors.primary }]} onPress={onShareLocation} disabled={loading}>
-                {loading ? <ActivityIndicator color={colors.textInverse} /> : (
-                    <>
-                        <MaterialCommunityIcons name="map-marker-radius" size={24} color={colors.textInverse} style={{ marginRight: 10 }} />
-                        <Text style={[styles.mainActionText, { color: colors.textInverse }]}>{t('actions.shareLocation')}</Text>
-                    </>
-                )}
-            </TouchableOpacity>
         </View>
     );
 
@@ -123,13 +114,13 @@ export default function TrackingView({
                         {routeInfo && routeInfo.duration < 1 ? t('tracking.arrived') : t('tracking.onTheWay')}
                     </Text>
                 </View>
-                <View style={[styles.truckIconLarge, { backgroundColor: colors.trackingPinkLight }]}>
-                    <MaterialCommunityIcons name="truck-fast" size={30} color={colors.trackingPink} />
+                <View style={[styles.truckIconLarge, { backgroundColor: colors.trackingBlueLight }]}>
+                    <MaterialCommunityIcons name="truck-fast" size={30} color={colors.trackingBlue} />
                 </View>
             </View>
 
             <View style={[styles.progressBarBg, { backgroundColor: colors.progressBarBackground }]}>
-                <View style={[styles.progressBarFill, { width: '60%', backgroundColor: colors.trackingPink }]} />
+                <View style={[styles.progressBarFill, { width: '60%', backgroundColor: colors.trackingBlue }]} />
             </View>
 
             {/* Confirm Collection Button */}

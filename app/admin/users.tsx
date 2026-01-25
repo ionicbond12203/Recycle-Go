@@ -93,13 +93,38 @@ export default function UsersManager() {
                                 throw new Error("You must be logged in with a real account (not mock Dev Admin) for RLS policies to work.");
                             }
 
+                            if (userId === session.user.id) {
+                                throw new Error("You cannot delete your own account.");
+                            }
+
                             // 2. Clean up ALL associated data
-                            // Note: We use .or() or separate calls for tables where userId could be in multiple columns
+                            // We delete in an order that respects potential dependencies
+
+                            // A. Unlink scanned items from transactions first!
+                            // This prevents FK constraint errors when deleting transactions
+                            console.log("Unlinking scanned items from transactions...");
+                            await supabase.from('scanned_items')
+                                .update({ transaction_id: null })
+                                .or(`contributor_id.eq.${userId}`);
+
+                            // B. Delete messages involving this user
+                            console.log("Deleting messages...");
+                            await supabase.from('messages').delete().or(`sender_id.eq.${userId},receiver_id.eq.${userId}`);
+
+                            // C. Delete scanned items (optional: if you want them gone too, or just keep them unlinked)
+                            // For now, let's keep them (unlinked) if they are the source of history, 
+                            // but the user's scan history should probably be deleted if the user is gone.
+                            console.log("Deleting scanned items...");
+                            await supabase.from('scanned_items').delete().eq('contributor_id', userId);
+
+                            // D. Delete transactions where they are contributor OR collector
+                            console.log("Deleting transactions...");
+                            await supabase.from('transactions').delete().or(`collector_id.eq.${userId},contributor_id.eq.${userId}`);
+
+                            // E. Clean up identity tables
+                            console.log("Cleaning up collector/contributor records...");
                             await supabase.from('collectors').delete().eq('id', userId);
                             await supabase.from('contributors').delete().eq('id', userId);
-                            await supabase.from('messages').delete().or(`sender_id.eq.${userId},receiver_id.eq.${userId}`);
-                            await supabase.from('scanned_items').delete().eq('contributor_id', userId);
-                            await supabase.from('transactions').delete().or(`collector_id.eq.${userId},contributor_id.eq.${userId}`);
 
                             // 3. Delete the profile
                             const { data, error, status } = await supabase

@@ -1,4 +1,5 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import React from "react";
 import { Alert, Dimensions, Image, Linking, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
 import { GameMechanics } from "../../constants/GameMechanics";
@@ -17,8 +18,11 @@ interface ProfileViewProps {
 
 export default function ProfileView({ stats, user, onViewHistory }: ProfileViewProps) {
     const { t } = useLanguage();
+    const router = useRouter(); // Initialize router
     const { colors, isDark, toggleTheme } = useTheme();
-    const { signOut } = useAuth();
+    const { signOut, profile } = useAuth(); // Get profile data
+
+    // ... (rest of gamification logic)
 
     // Gamification Logic
     const points = stats.points || 0;
@@ -37,20 +41,30 @@ export default function ProfileView({ stats, user, onViewHistory }: ProfileViewP
     const progress = nextLevel ? ((points - currentLevel.min) / (nextLevel.min - currentLevel.min)) : 1;
     const pointsToNext = nextLevel ? nextLevel.min - points : 0;
 
+    const handleLogoutAction = async () => {
+        await signOut();
+        router.replace("/login"); // Force navigation to login screen
+    };
+
     const handleLogout = async () => {
         Alert.alert(
-            t('auth.signingInAs'), // "Signing In" -> Using as confirming quit for now, could add specific key
+            t('auth.signingInAs'),
             "Are you sure you want to log out?",
             [
                 { text: "Cancel", style: "cancel" },
-                { text: t('profile.logout'), style: 'destructive', onPress: signOut }
+                { text: t('profile.logout'), style: 'destructive', onPress: handleLogoutAction }
             ]
         );
     };
 
+    // User Display Name
+    const displayName = profile?.full_name || user?.email?.split('@')[0] || "User";
+    const displayRole = profile?.role ? t(`auth.roles.${profile.role}`) : "Contributor";
+
     return (
         <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={{ paddingBottom: 100 }}>
-            <Text style={[styles.screenTitle, { color: colors.text }]}>{t('profile.title')}</Text>
+            {/* User requested "My Profile" title to match user name */}
+            <Text style={[styles.screenTitle, { color: colors.text }]}>{displayName}</Text>
 
             {/* Header Profile Card */}
             <View style={styles.profileHeader}>
@@ -59,9 +73,9 @@ export default function ProfileView({ stats, user, onViewHistory }: ProfileViewP
                     style={styles.avatarLarge}
                 />
                 <View style={styles.profileInfo}>
-                    <Text style={[styles.userName, { color: colors.text }]}>{user?.email?.split('@')[0] || "User"}</Text>
+                    <Text style={[styles.userName, { color: colors.text }]}>{displayName}</Text>
                     <View style={styles.roleBadge}>
-                        <Text style={styles.roleText}>Contributor</Text>
+                        <Text style={styles.roleText}>{displayRole}</Text>
                     </View>
                 </View>
             </View>

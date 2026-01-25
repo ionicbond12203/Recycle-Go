@@ -19,7 +19,11 @@ export const translations = {
             thisMonth: "This Month",
             recycleNow: "Recycle Now",
             viewAll: "View All",
-            noProcessingActivity: "No recent processing activity."
+            noProcessingActivity: "No recent processing activity.",
+            startFirstScan: "Start Your First Scan",
+            startFirstScanDesc: "Scan your recyclable items to track your impact",
+            cantScan: "Can't scan? Add manually",
+            addManualItem: "Add Item Manually"
         },
         profile: {
             title: "My Profile",
@@ -125,16 +129,16 @@ export const translations = {
         },
         onboarding: {
             slide1: {
-                title: "Easily schedule your recyclables for collection",
-                desc: "Contributors can post recyclable items like paper, glass, and plastic for nearby collectors to pick up."
+                title: "Turn Trash into Cash",
+                desc: "Use our AI scanner to identify recyclables instantly. Don't throw it away—recycle it and earn rewards."
             },
             slide2: {
-                title: "Track your collection progress",
-                desc: "See which items are picked up and when, keeping you updated in real-time."
+                title: "We Come to You",
+                desc: "No more heavy lifting. Schedule a pickup, and our collectors will pick up your recyclables right from your doorstep."
             },
             slide3: {
-                title: "Earn rewards for recycling",
-                desc: "Get points for every item you recycle and redeem them for exciting rewards."
+                title: "Make a Real Impact",
+                desc: "Track your carbon footprint and compete on the leaderboard. Saving the planet has never been this rewarding."
             }
         },
         guide: {
@@ -217,7 +221,11 @@ export const translations = {
             thisMonth: "本月",
             recycleNow: "立即回收",
             viewAll: "查看全部",
-            noProcessingActivity: "无近期处理活动。"
+            noProcessingActivity: "无近期处理活动。",
+            startFirstScan: "开始您的第一次扫描",
+            startFirstScanDesc: "扫描可回收物品以追踪您的环保贡献",
+            cantScan: "无法扫描？手动添加",
+            addManualItem: "手动添加物品"
         },
         collector: {
             startNav: "开始导航",
@@ -362,16 +370,16 @@ export const translations = {
         },
         onboarding: {
             slide1: {
-                title: "轻松安排回收物品",
-                desc: "贡献者可以发布纸张、玻璃和塑料等可回收物品，供附近的回收员上门收集。"
+                title: "变废为宝",
+                desc: "使用 AI 扫描仪即时识别可回收物。别扔掉——回收它并获得奖励。"
             },
             slide2: {
-                title: "追踪回收进度",
-                desc: "实时查看哪些物品被收集以及收集时间。"
+                title: "上门回收",
+                desc: "无需搬运重物。预约上门取件，我们的回收员会在您家门口收取废品。"
             },
             slide3: {
-                title: "回收赚取奖励",
-                desc: "为您回收的每件物品赚取积分，并兑换激动人心的奖励。"
+                title: "创造真实影响",
+                desc: "追踪您的碳足迹并在排行榜上竞争。保护地球从未如此有回报。"
             }
         },
         guide: {
@@ -415,7 +423,11 @@ export const translations = {
             thisMonth: "Bulan Ini",
             recycleNow: "Kitar Semula Sekarang",
             viewAll: "Lihat Semua",
-            noProcessingActivity: "Tiada aktiviti pemprosesan terkini."
+            noProcessingActivity: "Tiada aktiviti pemprosesan terkini.",
+            startFirstScan: "Mulakan Imbasan Pertama Anda",
+            startFirstScanDesc: "Imbas barang kitar semula untuk menjejak impak anda",
+            cantScan: "Tidak boleh imbas? Tambah secara manual",
+            addManualItem: "Tambah Barang Secara Manual"
         },
         collector: {
             startNav: "Mulakan Navigasi",
@@ -560,16 +572,16 @@ export const translations = {
         },
         onboarding: {
             slide1: {
-                title: "Jadualkan kutipan kitar semula dengan mudah",
-                desc: "Penyumbang boleh pos barang kitar semula seperti kertas, kaca, dan plastik untuk diambil oleh pengutip berdekatan."
+                title: "Tukar Sampah Jadi Tunai",
+                desc: "Gunakan pengimbas AI kami untuk kenal pasti barang kitar semula. Jangan buang—kitar semula dan dapatkan ganjaran."
             },
             slide2: {
-                title: "Jejak kemajuan kutipan anda",
-                desc: "Lihat barang mana yang diambil dan bila, memastikan anda sentiasa dikemaskini dalam masa nyata."
+                title: "Kami Datang Ke Pintu Anda",
+                desc: "Tiada lagi angkat berat. Jadualkan kutipan, dan pengutip kami akan ambil barang kitar semula anda dari rumah."
             },
             slide3: {
-                title: "Dapatkan ganjaran kitar semula",
-                desc: "Dapatkan mata bagi setiap barang yang anda kitar semula dan tebus ganjaran menarik."
+                title: "Buat Impak Sebenar",
+                desc: "Jejak jejak karbon anda dan bersaing di papan pendahulu. Menyelamatkan bumi kini lebih berbaloi."
             }
         },
         guide: {

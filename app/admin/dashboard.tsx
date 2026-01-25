@@ -5,11 +5,48 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-nati
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../contexts/AuthContext";
 import { useTheme } from "../../contexts/ThemeContext";
+import { supabase } from "../../lib/supabase";
 
 export default function AdminDashboard() {
     const router = useRouter();
     const { signOut } = useAuth();
     const { colors } = useTheme();
+    const [stats, setStats] = React.useState({ users: 0, collectors: 0, items: 0 });
+    const [loading, setLoading] = React.useState(true);
+
+    React.useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                // Fetch Total Users
+                const { count: userCount } = await supabase
+                    .from('profiles')
+                    .select('*', { count: 'exact', head: true });
+
+                // Fetch Active Collectors
+                const { count: collectorCount } = await supabase
+                    .from('profiles')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('role', 'collector');
+
+                // Fetch Total Recycled Items count
+                const { count: itemCount } = await supabase
+                    .from('scanned_items')
+                    .select('*', { count: 'exact', head: true });
+
+                setStats({
+                    users: userCount || 0,
+                    collectors: collectorCount || 0,
+                    items: itemCount || 0
+                });
+            } catch (error) {
+                console.error('Error fetching admin stats:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchStats();
+    }, []);
 
     const handleLogout = async () => {
         await signOut();
@@ -30,32 +67,32 @@ export default function AdminDashboard() {
                 <View style={styles.statsContainer}>
                     <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
                         <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Total Users</Text>
-                        <Text style={[styles.cardValue, { color: colors.text }]}>1,245</Text>
+                        <Text style={[styles.cardValue, { color: colors.text }]}>{loading ? "..." : stats.users.toLocaleString()}</Text>
                     </View>
                     <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
                         <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Active Collectors</Text>
-                        <Text style={[styles.cardValue, { color: colors.text }]}>45</Text>
+                        <Text style={[styles.cardValue, { color: colors.text }]}>{loading ? "..." : stats.collectors.toLocaleString()}</Text>
                     </View>
                     <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
                         <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Recycled Items</Text>
-                        <Text style={[styles.cardValue, { color: colors.text }]}>8,902</Text>
+                        <Text style={[styles.cardValue, { color: colors.text }]}>{loading ? "..." : stats.items.toLocaleString()}</Text>
                     </View>
                 </View>
 
                 {/* Actions */}
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>Management</Text>
 
-                <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.primary }]}>
+                <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.primary }]} onPress={() => router.push("/admin/users")}>
                     <FontAwesome name="users" size={20} color={colors.textInverse} />
                     <Text style={[styles.actionText, { color: colors.textInverse }]}>Manage Users</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.chartBlue }]}>
+                <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.chartBlue }]} onPress={() => router.push("/admin/map")}>
                     <FontAwesome name="map" size={20} color={colors.textInverse} />
                     <Text style={[styles.actionText, { color: colors.textInverse }]}>View Map Overview</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.chartOrange }]}>
+                <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.chartOrange }]} onPress={() => router.push("/admin/analytics")}>
                     <FontAwesome name="bar-chart" size={20} color={colors.textInverse} />
                     <Text style={[styles.actionText, { color: colors.textInverse }]}>System Analytics</Text>
                 </TouchableOpacity>

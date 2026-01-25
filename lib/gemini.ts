@@ -4,7 +4,13 @@ import { APP_KNOWLEDGE } from "./knowledgeBase";
 const API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY || "";
 const TAVILY_KEY = process.env.EXPO_PUBLIC_TAVILY_API_KEY || "";
 
-export async function askGemini(prompt: string): Promise<string> {
+interface ChatMessage {
+    id: string;
+    text: string;
+    sender: 'user' | 'bot';
+}
+
+export async function askGemini(prompt: string, history: ChatMessage[] = []): Promise<string> {
     if (!API_KEY) {
         console.error("Missing API Key");
         return "⚠️ I need a brain! Please set EXPO_PUBLIC_GEMINI_API_KEY in your .env file.";
@@ -14,16 +20,24 @@ export async function askGemini(prompt: string): Promise<string> {
     // Model: gemini-flash-latest (Standard Free Tier)
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${API_KEY}`;
 
+    // Build history context
+    const historyContext = history.map(m => `${m.sender === 'user' ? 'User' : 'Assistant'}: ${m.text}`).join('\n');
+
     const payload = {
         contents: [{
             parts: [{
                 text: `${APP_KNOWLEDGE}
         
         INSTRUCTIONS:
-        1. Answer based ONLY on the Manual above.
-        2. KEEP IT SHORT (2-3 sentences max).
-        3. Use emojis 🌿💎.
-        4. STRICT GUARDRAIL: If the question is not about this App or Recycling, reply: "I can only help with recycling questions! ♻️"
+        1. Answer based on the Manual above, but you are also capable of normal conversation related to the app and its features.
+        2. Respond in the same language the user uses or prefers (Detect from history if necessary).
+        3. KEEP IT SHORT (2-3 sentences max).
+        4. Use emojis 🌿💎.
+        5. If the user asks about languages, inform them we support English, Mandarin, and Malay.
+        6. STRICT GUARDRAIL: If the question is completely irrelevant to recycling, environmental impact, or this App, politely redirect them back to the topic.
+        
+        CONVERSATION HISTORY:
+        ${historyContext}
         
         User Question: ${prompt}`
             }]

@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 
 export default function InitialRedirect() {
-  const { user, loading, userRole, isProfileComplete } = useAuth();
+  const { user, loading, userRole, isProfileComplete, isGuest } = useAuth();
   const { colors } = useTheme();
 
   // Show loading while checking auth state
@@ -17,9 +17,14 @@ export default function InitialRedirect() {
     );
   }
 
-  // Not logged in - go to onboarding
+  // Guest mode - allow limited access to contributor screen
+  if (isGuest) {
+    return <Redirect href="/contributor" />;
+  }
+
+  // Not logged in - go to login
   if (!user) {
-    return <Redirect href="/onboarding" />;
+    return <Redirect href="/login" />;
   }
 
   // Check if profile is complete

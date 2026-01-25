@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useRef, useState } from 'react';
-import { FlatList, KeyboardAvoidingView, Linking, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { FlatList, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface Message {
@@ -24,21 +24,42 @@ export default function EcoBot({ visible, onClose }: EcoBotProps) {
         { id: '1', text: "Hi! I'm EcoBot 🤖. Not sure if something is recyclable? Ask me!", sender: 'bot' }
     ]);
     const [inputText, setInputText] = useState("");
+    const [suggestions, setSuggestions] = useState<string[]>([]);
     const flatListRef = useRef<FlatList>(null);
 
-    const handleSend = async () => {
-        if (!inputText.trim()) return;
+    const ALL_SUGGESTIONS = [
+        "Is plastic foil recyclable?",
+        "How to recycle glass jars?",
+        "Can I recycle pizza boxes?",
+        "Where is the nearest collection point?",
+        "What are the benefits of recycling?",
+        "How to earn more points?",
+        "Is electronic waste accepted?",
+        "How to wash containers before recycling?"
+    ];
 
-        const userText = inputText;
-        const userMsg: Message = { id: Date.now().toString(), text: userText, sender: 'user' };
+    React.useEffect(() => {
+        if (visible) {
+            // Pick 3 random unique suggestions
+            const shuffled = [...ALL_SUGGESTIONS].sort(() => 0.5 - Math.random());
+            setSuggestions(shuffled.slice(0, 3));
+        }
+    }, [visible]);
+
+    const handleSend = async (overrideText?: string) => {
+        const textToSend = overrideText || inputText;
+        if (!textToSend.trim()) return;
+
+        const userMsg: Message = { id: Date.now().toString(), text: textToSend, sender: 'user' };
         setMessages(prev => [...prev, userMsg]);
         setInputText("");
+        setSuggestions([]); // Clear suggestions after first interaction
 
         // Show generic thinking first? Or just wait.
         // Let's add a temporary "Thinking..." placeholder or just wait.
         // For simplicity, we just wait.
 
-        const reply = await askGemini(userText);
+        const reply = await askGemini(textToSend, messages);
         setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), text: reply, sender: 'bot' }]);
     };
 
@@ -119,6 +140,23 @@ export default function EcoBot({ visible, onClose }: EcoBotProps) {
                         )}
                     />
 
+                    {/* Suggestions */}
+                    {suggestions.length > 0 && (
+                        <View style={styles.suggestionsWrapper}>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.suggestionsContainer}>
+                                {suggestions.map((s, i) => (
+                                    <TouchableOpacity
+                                        key={i}
+                                        style={[styles.suggestionChip, { backgroundColor: colors.card, borderColor: colors.primary }]}
+                                        onPress={() => handleSend(s)}
+                                    >
+                                        <Text style={[styles.suggestionText, { color: colors.primary }]}>{s}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+                        </View>
+                    )}
+
                     {/* Input */}
                     <View style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, 5), backgroundColor: colors.card, borderTopColor: colors.border }]}>
                         <TextInput
@@ -127,9 +165,9 @@ export default function EcoBot({ visible, onClose }: EcoBotProps) {
                             onChangeText={setInputText}
                             placeholder="Type e.g., 'Is foil recyclable?'"
                             placeholderTextColor={colors.textTertiary}
-                            onSubmitEditing={handleSend}
+                            onSubmitEditing={() => handleSend()}
                         />
-                        <TouchableOpacity style={[styles.sendBtn, { backgroundColor: colors.primary }]} onPress={handleSend}>
+                        <TouchableOpacity style={[styles.sendBtn, { backgroundColor: colors.primary }]} onPress={() => handleSend()}>
                             <Ionicons name="send" size={20} color={colors.textInverse} />
                         </TouchableOpacity>
                     </View>
@@ -155,5 +193,9 @@ const styles = StyleSheet.create({
     botText: {},
     inputContainer: { flexDirection: 'row', padding: 10, borderTopWidth: 1, alignItems: 'center' },
     input: { flex: 1, borderRadius: 25, paddingHorizontal: 20, paddingVertical: 12, marginRight: 10, fontSize: 16 },
-    sendBtn: { width: 45, height: 45, borderRadius: 25, justifyContent: 'center', alignItems: 'center' }
+    sendBtn: { width: 45, height: 45, borderRadius: 25, justifyContent: 'center', alignItems: 'center' },
+    suggestionsWrapper: { paddingVertical: 10, borderTopWidth: 1, borderTopColor: 'transparent' },
+    suggestionsContainer: { paddingHorizontal: 15, gap: 10 },
+    suggestionChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
+    suggestionText: { fontSize: 13, fontWeight: '600' }
 });

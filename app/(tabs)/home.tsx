@@ -161,17 +161,22 @@ export default function CollectorHomeScreen() {
       }
       setPermission(true);
 
-      let location = await Location.getCurrentPositionAsync({});
-      const initialRegion = {
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        latitudeDelta: 0.05,
-        longitudeDelta: 0.05,
-      };
-      setRegion(initialRegion);
+      try {
+        let location = await Location.getCurrentPositionAsync({});
+        const initialRegion = {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        };
+        setRegion(initialRegion);
 
-      if (mapRef.current) {
-        mapRef.current.animateToRegion(initialRegion, 1000);
+        if (mapRef.current) {
+          mapRef.current.animateToRegion(initialRegion, 1000);
+        }
+      } catch (error) {
+        console.log("Error getting initial location:", error);
+        // Fallback to a default location or just don't crash
       }
     })();
   }, []);
@@ -414,36 +419,65 @@ export default function CollectorHomeScreen() {
    */
   const handleSearchNow = async () => {
     setAppState('searching');
+
+    // 1. Get Current Location first
     let freshRegion = region;
     try {
-      const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-      freshRegion = { latitude: location.coords.latitude, longitude: location.coords.longitude, latitudeDelta: 0.05, longitudeDelta: 0.05 };
-      setRegion(freshRegion);
-      if (mapRef.current) mapRef.current.animateToRegion(freshRegion, 1000);
-    } catch (e) { console.log(e); }
-
-    try {
-      // Fetch only ACTIVE jobs
-      const { data: contributors, error } = await supabase
-        .from('contributors')
-        .select('*')
-        .limit(50);
-
-      if (error) throw error;
-      if (!contributors || contributors.length === 0) {
-        Alert.alert("No contributors found");
+      const { status } = await Location.getForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert("Permission Denied", "Location permission is required to find jobs.");
         setAppState('idle');
         return;
       }
-      const processedJobs: Job[] = [];
-      for (const c of contributors) {
-        const dist = getDistance(freshRegion.latitude, freshRegion.longitude, c.latitude, c.longitude);
-        if (dist > 50000) continue;
 
-        // Fetch profile for this contributor to get phone number
+      const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      freshRegion = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        latitudeDelta: 0.05,
+        longitudeDelta: 0.05
+      };
+      setRegion(freshRegion);
+      if (mapRef.current) mapRef.current.animateToRegion(freshRegion, 1000);
+    } catch (e) {
+      console.log("Location Error:", e);
+      Alert.alert("Location Error", "Could not determine your location.");
+      setAppState('idle');
+      return;
+    }
+
+    try {
+      // 2. Fetch Active Contributors
+      const { data: contributors, error } = await supabase
+        .from('contributors')
+        .select('*')
+        .eq('status', 'active')
+        .limit(50); // Fetch ample to filter locally
+
+      if (error) throw error;
+
+      if (!contributors || contributors.length === 0) {
+        Alert.alert("No contributors found", "There are no active contributors online right now.");
+        setAppState('idle');
+        return;
+      }
+
+      const processedJobs: Job[] = [];
+      const MAX_DISTANCE_METERS = 50000; // 50km radius
+
+      for (const c of contributors) {
+        // Skip self if testing on same device/account (optional but good practice)
+        if (c.id === collectorId) continue;
+
+        const dist = getDistance(freshRegion.latitude, freshRegion.longitude, c.latitude, c.longitude);
+        if (dist > MAX_DISTANCE_METERS) continue;
+
+        // Fetch profile
         let phone = '';
         let contributorName = 'Contributor';
         let contributorAvatar = '';
+
+        // Optimisation: Could allow null profile if just showing map pins, but we want details
         const { data: profile } = await supabase.from('profiles').select('contact_number, full_name, avatar_url').eq('id', c.id).single();
         if (profile) {
           phone = profile.contact_number;
@@ -452,8 +486,12 @@ export default function CollectorHomeScreen() {
         }
 
         processedJobs.push({
-          id: c.id, latitude: c.latitude, longitude: c.longitude,
-          address: "Tap to view address", wasteType: ['Plastic', 'Paper'], status: 'pending',
+          id: c.id,
+          latitude: c.latitude,
+          longitude: c.longitude,
+          address: "Tap to view address",
+          wasteType: ['Plastic', 'Paper'], // Placeholder until we fetch real items
+          status: 'pending',
           distanceLabel: dist > 1000 ? `${(dist / 1000).toFixed(1)} km` : `${Math.round(dist)} m`,
           rawDistance: dist,
           phoneNumber: phone,
@@ -461,28 +499,37 @@ export default function CollectorHomeScreen() {
           contributorAvatar: contributorAvatar
         });
       }
-      processedJobs.sort((a, b) => a.rawDistance - b.rawDistance);
+
+      // 3. Check if any jobs remain after filtering
       if (processedJobs.length === 0) {
-        Alert.alert("No jobs nearby");
+        Alert.alert("No jobs nearby", "Access contributors found, but they are too far away (>50km).");
         setAppState('idle');
         return;
       }
+
+      // 4. Sort and Set
+      processedJobs.sort((a, b) => a.rawDistance - b.rawDistance);
       setAvailableJobs(processedJobs);
+
       const closest = processedJobs[0];
       resolveAddressForJob(closest);
       setActiveJob(closest);
       setRouteInfo(null);
 
-      // Simulate network latency/searching duration
+      // 5. Transition UI (Simulate 'Finding...' delay)
       setTimeout(() => {
         setAppState('request_received');
         if (mapRef.current) {
-          mapRef.current.fitToCoordinates([{ latitude: freshRegion.latitude, longitude: freshRegion.longitude }, { latitude: closest.latitude, longitude: closest.longitude }], { edgePadding: { top: 100, right: 50, bottom: 300, left: 50 }, animated: true });
+          mapRef.current.fitToCoordinates(
+            [{ latitude: freshRegion.latitude, longitude: freshRegion.longitude }, { latitude: closest.latitude, longitude: closest.longitude }],
+            { edgePadding: { top: 100, right: 50, bottom: 300, left: 50 }, animated: true }
+          );
         }
-      }, 1000); // 1 second delay for "Searching..." UI
+      }, 1500);
 
     } catch (err: any) {
-      Alert.alert("Error", err.message);
+      console.error("Search Error:", err);
+      Alert.alert("Error", err.message || "Failed to search for jobs.");
       setAppState('idle');
     }
   };
@@ -563,16 +610,33 @@ export default function CollectorHomeScreen() {
   const handleAcceptJob = async (job: Job) => {
     if (!job || !collectorId) return;
 
-    setActiveJob(job);
-    setAppState('navigating');
-    setAvailableJobs([]); // Clear others from map view to focus on route? Or keep them? 
-    // Ideally keep them if we want dynamic adds, but for now focus mode.
+    try {
+      // 1. Update contributor status to 'assigned' to hide from other collectors
+      console.log("Accepting job, updating status for contributor:", job.id);
+      const { data, error } = await supabase
+        .from('contributors')
+        .update({ status: 'assigned', collector_id: collectorId })
+        .eq('id', job.id)
+        .select();
 
-    if (mapRef.current) {
-      mapRef.current.fitToCoordinates(
-        [{ latitude: region.latitude, longitude: region.longitude }, { latitude: job.latitude, longitude: job.longitude }],
-        { edgePadding: { top: 100, right: 50, bottom: 250, left: 50 }, animated: true }
-      );
+      if (error) {
+        console.error("Failed to update status to assigned:", error);
+      } else {
+        console.log("Status updated to assigned. Rows affected:", data?.length);
+      }
+
+      setActiveJob(job);
+      setAppState('navigating');
+      setAvailableJobs([]);
+
+      if (mapRef.current) {
+        mapRef.current.fitToCoordinates(
+          [{ latitude: region.latitude, longitude: region.longitude }, { latitude: job.latitude, longitude: job.longitude }],
+          { edgePadding: { top: 100, right: 50, bottom: 250, left: 50 }, animated: true }
+        );
+      }
+    } catch (error) {
+      console.error("Error accepting job:", error);
     }
   };
 
@@ -672,8 +736,20 @@ export default function CollectorHomeScreen() {
    * 4. ELSE -> Show completion screen ('completed' state).
    */
   const handleFinishJob = async () => {
-    // Remove completed job from queue
+    // 1. Update contributor status to 'completed'
     if (activeJob) {
+      console.log("Finishing job, updating status for contributor:", activeJob.id);
+      const { data, error } = await supabase
+        .from('contributors')
+        .update({ status: 'completed' })
+        .eq('id', activeJob.id)
+        .select();
+
+      if (error) {
+        console.error("Failed to update status to completed:", error);
+      } else {
+        console.log("Status updated to completed. Rows affected:", data?.length);
+      }
       setActiveQueue(prev => prev.filter(j => j.id !== activeJob!.id));
     }
 
@@ -1161,7 +1237,7 @@ const styles = StyleSheet.create({
   arrivedTitle: { fontSize: 24, fontWeight: 'bold', marginBottom: 5, color: '#333' },
   arrivedSub: { fontSize: 16, color: '#666', marginBottom: 25, textAlign: 'center' },
   arrivedButtonLarge: { width: '100%', backgroundColor: '#38761D', paddingVertical: 16, borderRadius: 30, alignItems: 'center' },
-  collectedButton: { width: '100%', backgroundColor: '#38761D', paddingVertical: 16, borderRadius: 12, alignItems: 'center' },
+  collectedButton: { flex: 1, backgroundColor: '#38761D', paddingVertical: 16, borderRadius: 12, alignItems: 'center' },
 
   // --- COMPLETED MODAL ---
   completedContainer: { flex: 1, backgroundColor: '#38761D', justifyContent: 'center', alignItems: 'center', padding: 20 },

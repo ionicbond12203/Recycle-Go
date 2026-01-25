@@ -11,6 +11,7 @@ interface Job {
     distanceLabel: string;
     contributorName?: string;
     contributorAvatar?: string;
+    phoneNumber?: string;
 }
 
 interface JobDetailModalProps {
@@ -106,13 +107,29 @@ export default function JobDetailModal({ visible, job, onClose, onProcess, onRej
                             <Text style={[styles.subtitle, { color: colors.textSecondary }]} numberOfLines={1}>{job.address}</Text>
                         </View>
                     </View>
-                    <TouchableOpacity
-                        onPress={onClose}
-                        style={styles.closeBtn}
-                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    >
-                        <Ionicons name="close" size={24} color={colors.text} />
-                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', gap: 10 }}>
+                        <TouchableOpacity
+                            onPress={() => {
+                                if (job.phoneNumber) {
+                                    let { Linking, Alert } = require('react-native');
+                                    Linking.openURL(`tel:${job.phoneNumber}`);
+                                } else {
+                                    let { Alert } = require('react-native');
+                                    Alert.alert("No Phone", "Contributor hasn't provided a number");
+                                }
+                            }}
+                            style={[styles.closeBtn, { backgroundColor: colors.primary + '15' }]}
+                        >
+                            <Ionicons name="call" size={20} color={colors.primary} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={onClose}
+                            style={styles.closeBtn}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                            <Ionicons name="close" size={24} color={colors.text} />
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
                 {/* Content */}

@@ -84,7 +84,9 @@ export const Colors = {
         // Tracking
         trackingPink: '#FF4081',
         trackingPinkLight: '#FCE4EC',
-        truckMarkerBg: '#FF4081',
+        trackingBlue: '#2196F3',
+        trackingBlueLight: '#E3F2FD',
+        truckMarkerBg: '#2196F3', // Changed from pink to blue to match route
     },
 
     dark: {
@@ -168,7 +170,9 @@ export const Colors = {
         // Tracking
         trackingPink: '#FF4081',
         trackingPinkLight: '#3d0014', // Darker for dark mode
-        truckMarkerBg: '#FF4081',
+        trackingBlue: '#42A5F5',
+        trackingBlueLight: '#0D47A1',
+        truckMarkerBg: '#42A5F5', // Changed from pink to blue to match route
 
         // Onboarding
         onboardingAction: '#2e7c82',

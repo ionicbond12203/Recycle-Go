@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { Alert, BackHandler, Image, Linking, Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -8,6 +9,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import CartView, { CartItem } from "../components/contributor/CartView";
 import ChatModal from "../components/contributor/ChatModal";
 import HomeView from "../components/contributor/HomeView";
+import ManualItemEntryModal, { ManualItem } from "../components/contributor/ManualItemEntryModal";
 import ProfileView from "../components/contributor/ProfileView";
 import ScannerView from "../components/contributor/ScannerView";
 import ScanResultView from "../components/contributor/ScanResultView";
@@ -23,13 +25,37 @@ import { ChatMessage } from "../types";
 
 
 export default function ContributorPage() {
-  const { user } = useAuth();
+  const router = useRouter();
+  const { user, isGuest, signOut } = useAuth();
   const { colors, isDark } = useTheme();
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
 
+  // Helper function to prompt guest to sign in
+  const promptGuestSignIn = () => {
+    Alert.alert(
+      "Sign In Required",
+      "You need to sign in to request a pickup and earn rewards.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Sign In",
+          onPress: async () => {
+            await signOut(); // Clear guest state
+            router.replace("/login"); // Navigate to login
+          }
+        }
+      ]
+    );
+  };
+
 
   const pickImage = async () => {
+    // Guest restriction - must sign in to scan and earn points
+    if (isGuest || !user) {
+      promptGuestSignIn();
+      return;
+    }
     setIsScanning(true);
   };
 
@@ -45,6 +71,7 @@ export default function ContributorPage() {
   const [scannedItem, setScannedItem] = useState<any>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [isManualModalOpen, setManualModalOpen] = useState(false);
 
   // Real User Stats
   const [globalStats, setGlobalStats] = useState({ points: 0, savedCO2: "0kg", recycled: "0" });
@@ -66,10 +93,15 @@ export default function ContributorPage() {
   const [isEcoBotOpen, setIsEcoBotOpen] = useState(false);
 
   useEffect(() => {
+    // Set device ID: use user.id for logged in users, or a temp guest ID
     if (user) {
       setDeviceId(user.id);
+    } else if (isGuest) {
+      // Guest gets a temporary session ID (not persisted)
+      setDeviceId(`guest_${Date.now()}`);
     }
 
+    // Fetch location for map display (works for both guest and logged in)
     (async () => {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
@@ -78,7 +110,7 @@ export default function ContributorPage() {
         setLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
       } catch (error) { console.error(error); }
     })();
-  }, [user]);
+  }, [user, isGuest]);
 
   // Handle System Back Button
   useEffect(() => {
@@ -270,6 +302,12 @@ export default function ContributorPage() {
   const handleAddToCart = async () => {
     if (!scannedItem) return;
 
+    // Guest restriction - must sign in to save data
+    if (isGuest || !user) {
+      promptGuestSignIn();
+      return;
+    }
+
     // 1. Add to local cart
     const newItem = {
       id: Date.now().toString(),
@@ -342,16 +380,81 @@ export default function ContributorPage() {
     setShowSuccessModal(true);
   };
 
-  const handleUploadLocation = async () => {
-    if (!deviceId) return;
-    if (!location) {
-      Alert.alert(t('messages.locationNotFound'), t('messages.waitLocation'));
+  const handleManualAdd = async (manualItem: ManualItem) => {
+    if (isGuest || !user || !deviceId) {
+      promptGuestSignIn();
       return;
     }
+
     setLoadingUpload(true);
     try {
+      // 1. Add to local cart
+      const newItem: CartItem = {
+        id: Date.now().toString(),
+        name: manualItem.name,
+        imageUri: manualItem.imageUri,
+        quantity: 1,
+        points: manualItem.points,
+        material: manualItem.material,
+        co2: manualItem.co2
+      };
+      setCart(prev => [...prev, newItem]);
+
+      // 2. Save to Supabase (without image upload for now, using placeholder)
+      const { error } = await supabase.from('scanned_items').insert({
+        contributor_id: deviceId,
+        name: manualItem.name,
+        material: manualItem.material,
+        points: manualItem.points,
+        image_uri: manualItem.imageUri,
+        co2_saved: manualItem.co2
+      });
+
+      if (error) throw error;
+      setShowSuccessModal(true);
+    } catch (e) {
+      console.error("Manual add error:", e);
+      Alert.alert("Error", "Failed to save manual item.");
+    } finally {
+      setLoadingUpload(false);
+    }
+  };
+
+  const handleUploadLocation = async () => {
+    // Guest restriction - this feature requires login
+    if (isGuest || !user) {
+      promptGuestSignIn();
+      return;
+    }
+
+    if (!deviceId) return;
+
+    setLoadingUpload(true);
+
+    // If location is not available, try to fetch it now
+    let currentLocation = location;
+    if (!currentLocation) {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          Alert.alert(t('messages.locationNotFound'), "Please enable location permissions.");
+          setLoadingUpload(false);
+          return;
+        }
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        currentLocation = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+        setLocation(currentLocation); // Update state for future use
+      } catch (error) {
+        console.error("Location fetch error:", error);
+        Alert.alert(t('messages.locationNotFound'), t('messages.waitLocation'));
+        setLoadingUpload(false);
+        return;
+      }
+    }
+
+    try {
       const { error } = await supabase.from("contributors").upsert(
-        [{ id: deviceId, latitude: location.latitude, longitude: location.longitude }],
+        [{ id: deviceId, latitude: currentLocation.latitude, longitude: currentLocation.longitude, status: 'active' }],
         { onConflict: "id" }
       );
       if (error) throw error;
@@ -535,7 +638,7 @@ export default function ContributorPage() {
             {/* Center Camera Button */}
             <View style={styles.centerBtnContainer}>
               <TouchableOpacity
-                onPress={() => setIsScanning(true)}
+                onPress={pickImage}
                 style={[styles.cameraButton, { backgroundColor: "#2D5A27", borderColor: theme.background }]} // Always Forest Green for brand identity
               >
                 <Ionicons name="camera" size={28} color="#fff" />
@@ -627,6 +730,8 @@ export default function ContributorPage() {
           userLocation={location}
           avatarUrl={user?.user_metadata?.avatar_url}
           recentTransactions={recentTransactions}
+          onStartScan={pickImage}
+          onManualAdd={() => setManualModalOpen(true)}
         />
       )}
 
@@ -645,7 +750,16 @@ export default function ContributorPage() {
             setCart(prev => prev.map(item => item.id === id ? { ...item, quantity: Math.max(0, item.quantity + delta) } : item).filter(i => i.quantity > 0));
           }}
           onAddMore={pickImage}
-          onReviewAddress={() => setCurrentScreen('tracking')}
+          onReviewAddress={async () => {
+            // Guest restriction - must sign in to request pickup
+            if (isGuest || !user) {
+              promptGuestSignIn();
+              return;
+            }
+            // Trigger location share automatically
+            await handleUploadLocation();
+            setCurrentScreen('tracking');
+          }}
           onBack={() => setCurrentScreen('home')}
         />
       )}
@@ -693,13 +807,19 @@ export default function ContributorPage() {
 
       <EcoBot visible={isEcoBotOpen} onClose={() => setIsEcoBotOpen(false)} />
 
+      <ManualItemEntryModal
+        visible={isManualModalOpen}
+        onClose={() => setManualModalOpen(false)}
+        onAdd={handleManualAdd}
+      />
+
       {/* Floating Eco-Bot Button */}
       {currentScreen === 'home' && (
         <TouchableOpacity
           style={[styles.ecoFab, { backgroundColor: theme.card, borderColor: theme.border }]}
           onPress={() => setIsEcoBotOpen(true)}
         >
-          <Ionicons name="happy-outline" size={30} color={theme.primary} />
+          <Text style={{ fontSize: 28 }}>🤖</Text>
         </TouchableOpacity>
       )}
 

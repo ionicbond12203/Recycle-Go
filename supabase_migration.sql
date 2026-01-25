@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS public.transactions (
 
 -- Link scanned_items to transactions
 ALTER TABLE public.scanned_items
-ADD COLUMN IF NOT EXISTS transaction_id uuid REFERENCES public.transactions(id);
+ADD COLUMN IF NOT EXISTS transaction_id uuid REFERENCES public.transactions(id) ON DELETE SET NULL;
 
 -- ENABLE REALTIME
 DO $$

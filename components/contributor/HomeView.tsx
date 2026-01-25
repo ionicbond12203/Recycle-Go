@@ -39,10 +39,13 @@ interface HomeViewProps {
     userLocation: { latitude: number; longitude: number } | null;
     avatarUrl?: string;
     recentTransactions?: any[];
+    onStartScan: () => void;
+    onManualAdd: () => void;
 }
 
-export default function HomeView({ stats, userLocation, avatarUrl, recentTransactions = [] }: HomeViewProps) {
+export default function HomeView({ stats, userLocation, avatarUrl, recentTransactions = [], onStartScan, onManualAdd }: HomeViewProps) {
     const { t } = useLanguage();
+    // ... (rest of local state) as before
     const { isDark } = useTheme();
     const theme = isDark ? CONTRIBUTOR_THEME.dark : CONTRIBUTOR_THEME.light;
     const { profile } = useAuth();
@@ -56,6 +59,9 @@ export default function HomeView({ stats, userLocation, avatarUrl, recentTransac
         getDailyTip().then(setDailyTip);
     }, []);
 
+    // Smart name fallback
+    const displayName = profile?.full_name || profile?.email?.split('@')[0] || "User";
+
     const CATEGORIES = [
         { id: 'plastic', name: t('materials.plastic'), image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDubuQIHxWzXLCG7hUAdpkRlPKrNftWqs22AICNsGQSbZ8A67kAVVKk1nGdDOVGD5gyc6AJcJY3CF24yPyhCg4rAWhbDY6uu8KciHdP1wmhq_iGS9_mwpmAD7tMOAnwcSkOxVLGNYzvGP8x7u3SbhO57aJPv15znJ6xSjBd-SmyLiNomC74n2r2LO6JNVGAowmonhTJbZ4YnqW4ndtJIzJxsQuEg7BJkVZCd582coMioKpE-Py0VGz7oV7yOWIAMZo74t5Oih7jvc0' },
         { id: 'glass', name: t('materials.glass'), image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCNu7R6OUQoeG20KsInzCZbqXH8IqUGa2HMyIdBTS1h6WEEVVc9n7pvCCNgTRZgzTGV5J9teulqmf6NJsAqMfWF2DDq0EKnPpkMU0lOIO9MpZcGvbP1t4ro1y5RekF-F5jW2vuD3uXUItithtGhBIOaS7RQsR_OcBv958dI2W6m79PbPasNNyGg-fiiv4bu0soFz9WBoTQTjI4KqqbNoDJb6L3qZOSUedu6a6yG3aeIK7_0R6pS_ie_vMUff73wHdGaK7yVy51QwRs' },
@@ -67,13 +73,15 @@ export default function HomeView({ stats, userLocation, avatarUrl, recentTransac
         setSelectedTransaction(transaction);
     };
 
+    const isNewUser = stats.points === 0 && stats.recycled === "0";
+
     return (
         <ScrollView style={styles.scrollContainer} contentContainerStyle={{ paddingBottom: 150 }}>
             {/* --- HEADER --- */}
             <View style={styles.headerContainer}>
                 <View>
                     <Text style={[styles.headerGreeting, { color: theme.textSecondary }]}>{t('home.goodMorning')}</Text>
-                    <Text style={[styles.headerName, { color: theme.text }]}>{profile?.full_name || "Eco Warrior"}</Text>
+                    <Text style={[styles.headerName, { color: theme.text }]}>{displayName}</Text>
                 </View>
                 <View style={styles.headerActions}>
                     <LanguageSwitcher />
@@ -124,11 +132,36 @@ export default function HomeView({ stats, userLocation, avatarUrl, recentTransac
                 </View>
             </View>
 
+            {/* --- GET STARTED CTA (NEW USER) --- */}
+            {isNewUser && (
+                <View style={[styles.sectionContainer, { marginTop: 24 }]}>
+                    <TouchableOpacity
+                        style={[styles.ctaCard, { backgroundColor: theme.primary }]}
+                        onPress={onStartScan}
+                    >
+                        <View style={styles.ctaContent}>
+                            <View style={styles.ctaIconBox}>
+                                <MaterialCommunityIcons name="camera-plus" size={28} color={theme.primary} />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.ctaTitle}>{t('home.startFirstScan')}</Text>
+                                <Text style={styles.ctaDescription}>{t('home.startFirstScanDesc')}</Text>
+                            </View>
+                            <MaterialCommunityIcons name="chevron-right" size={24} color="#fff" />
+                        </View>
+                    </TouchableOpacity>
+                </View>
+            )}
+
             {/* --- RECYCLE NOW GRID --- */}
             <View style={[styles.sectionContainer, { marginTop: 32 }]}>
                 <View style={styles.sectionHeaderRow}>
                     <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('home.recycleNow')}</Text>
-                    <TouchableOpacity><Text style={[styles.viewAllText, { color: theme.primary }]}>{t('home.viewAll')}</Text></TouchableOpacity>
+                    <TouchableOpacity onPress={onManualAdd}>
+                        <Text style={[styles.viewAllText, { color: theme.primary, textDecorationLine: 'underline' }]}>
+                            {t('home.cantScan')}
+                        </Text>
+                    </TouchableOpacity>
                 </View>
 
                 <View style={styles.gridContainer}>
@@ -269,4 +302,13 @@ const styles = StyleSheet.create({
     tipBadgeText: { color: '#A7F3D0', fontSize: 12, fontWeight: '800', letterSpacing: 1.5 },
     tipMainTitle: { color: '#fff', fontSize: 24, fontWeight: '800' },
     tipDescription: { color: 'rgba(255,255,255,0.9)', fontSize: 14, lineHeight: 22, maxWidth: '85%' },
+
+    // CTA Card
+    ctaCard: { borderRadius: 24, padding: 20, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 10, elevation: 6 },
+    ctaContent: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+    ctaIconBox: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center' },
+    ctaTitle: { color: '#fff', fontSize: 18, fontWeight: '800', marginBottom: 4 },
+    ctaDescription: { color: 'rgba(255,255,255,0.9)', fontSize: 13, lineHeight: 18 },
+    manualLink: { alignSelf: 'center', padding: 8 },
+    manualLinkText: { fontSize: 14, fontWeight: '600', textDecorationLine: 'underline' }
 });

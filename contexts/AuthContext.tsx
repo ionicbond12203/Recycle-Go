@@ -1,5 +1,6 @@
 // contexts/AuthContext.tsx
 import type { Session, User } from '@supabase/supabase-js';
+import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 import { Alert } from 'react-native';
@@ -46,6 +47,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+    const router = useRouter();
     const [user, setUser] = useState<User | null>(null);
     const [session, setSession] = useState<Session | null>(null);
     const [loading, setLoading] = useState(true);
@@ -54,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [isProfileComplete, setIsProfileComplete] = useState(true); // Default to true to avoid flash, check in effect
     const [isGuest, setIsGuest] = useState(false);
     const [pendingRole, setPendingRole] = useState<UserRole | null>(null);
+    const [isRevoking, setIsRevoking] = useState(false);
 
     // Listen to auth state changes
     useEffect(() => {
@@ -93,8 +96,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // 3. Subscribe to auth changes
         const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(
             async (_event, session) => {
-                console.log('Auth state changed:', _event);
-
                 // If we are handling a SIGNed_IN event, we want to be careful not to
                 // double-fetch if handleAuthRedirect is also doing it.
                 // But for safety, we allow it, as consistency is key.
@@ -122,13 +123,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         };
     }, []);
 
+    // Periodic Session Validation
+    useEffect(() => {
+        if (!user || isGuest || user.id === 'dev-admin-id') return;
+
+        // Check if user still exists every 30 seconds for security revocation
+        // Silence the log to prevent terminal clutter
+        const interval = setInterval(() => {
+            loadUserRole(user.id);
+        }, 30000);
+
+        return () => clearInterval(interval);
+    }, [user?.id, isGuest]);
+
     const loadUserRole = async (userId: string) => {
+        // Skip check for mock dev admin
+        if (userId === 'dev-admin-id') return;
+
         try {
             const { data, error } = await supabase
                 .from('profiles')
                 .select('*')
                 .eq('id', userId)
                 .single();
+
+            if (error || !data) {
+                const isProfileMissing = error?.code === 'PGRST116';
+                console.log(`[Auth] Profile validation failed. Code: ${error?.code}, Missing: ${isProfileMissing}`);
+
+                // If user is logged in to Auth but profile is gone (PGRST116), they were deleted by Admin
+                if (user && !isGuest && isProfileMissing && userId !== 'dev-admin-id' && !isRevoking) {
+                    console.warn('[Auth] ACTIVE USER HAS NO PROFILE (DELETED). FORCE LOGOUT.');
+                    setIsRevoking(true);
+
+                    Alert.alert(
+                        "Access Denied",
+                        "Your account has violated our policies or has been deleted. Please log in again.",
+                        [{
+                            text: "OK",
+                            onPress: async () => {
+                                await signOut();
+                                setIsRevoking(false);
+                                router.replace('/login');
+                            }
+                        }],
+                        { cancelable: false }
+                    );
+                }
+                return;
+            }
 
             if (data) {
                 const userProfile = data as Profile;
@@ -327,17 +370,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
             setLoading(true);
             const { error } = await supabase.auth.signOut();
-            if (error) throw error;
+            // We ignore "Auth session missing" errors as we are already trying to clear state
+            if (error && error.message !== 'Auth session missing!') throw error;
+        } catch (error: any) {
+            console.error('Sign out error:', error);
+            Alert.alert('Error', error.message);
+        } finally {
+            // ALWAYS clear local state even if the server-side sign out failed
             setUser(null);
             setSession(null);
             setUserRole(null);
             setProfile(null);
             setIsProfileComplete(false);
-            setIsGuest(false); // Clear guest status on sign out
-        } catch (error: any) {
-            console.error('Sign out error:', error);
-            Alert.alert('Error', error.message);
-        } finally {
+            setIsGuest(false);
             setLoading(false);
         }
     };
