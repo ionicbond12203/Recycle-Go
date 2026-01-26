@@ -1,6 +1,6 @@
 export const Assets = {
     ONBOARDING: {
-        SLIDE_1: 'https://img.freepik.com/free-vector/recycling-concept-illustration_114360-4663.jpg',
+        SLIDE_1: require('../assets/images/onboarding-ai-scanner.png'),
         SLIDE_2: 'https://img.freepik.com/free-vector/delivery-service-with-mask-concept_23-2148505104.jpg',
         SLIDE_3: 'https://img.freepik.com/free-vector/wallet-concept-illustration_114360-1423.jpg',
     },

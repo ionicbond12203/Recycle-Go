@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import { Dimensions, FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -16,7 +17,7 @@ export default function OnboardingScreen() {
   const slides = [
     {
       key: "1",
-      image: { uri: Assets.ONBOARDING.SLIDE_1 },
+      image: Assets.ONBOARDING.SLIDE_1,
       title: t('onboarding.slide1.title'),
       description: t('onboarding.slide1.desc'),
     },
@@ -36,16 +37,21 @@ export default function OnboardingScreen() {
   const flatListRef = useRef<FlatList>(null);
   const router = useRouter();
 
+  const completeOnboarding = async () => {
+    await AsyncStorage.setItem('hasSeenOnboarding', 'true');
+    router.replace("/login");
+  };
+
   const handleNext = () => {
     if (currentIndex < slides.length - 1) {
       flatListRef.current?.scrollToIndex({ index: currentIndex + 1 });
     } else {
-      router.replace("/login");
+      completeOnboarding();
     }
   };
 
   const handleSkip = () => {
-    router.replace("/login");
+    completeOnboarding();
   };
 
   const onViewRef = useRef(({ viewableItems }: any) => {

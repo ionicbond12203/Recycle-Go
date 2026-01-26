@@ -1,5 +1,7 @@
 //app/index.tsx
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Redirect } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -7,14 +9,26 @@ import { useTheme } from '../contexts/ThemeContext';
 export default function InitialRedirect() {
   const { user, loading, userRole, isProfileComplete, isGuest } = useAuth();
   const { colors } = useTheme();
+  const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
 
-  // Show loading while checking auth state
-  if (loading) {
+  useEffect(() => {
+    AsyncStorage.getItem('hasSeenOnboarding').then((value) => {
+      setHasSeenOnboarding(value === 'true');
+    });
+  }, []);
+
+  // Show loading while checking auth state or onboarding status
+  if (loading || hasSeenOnboarding === null) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
+  }
+
+  // Show onboarding for first-time users (before login)
+  if (!hasSeenOnboarding && !user && !isGuest) {
+    return <Redirect href="/onboarding" />;
   }
 
   // Guest mode - allow limited access to contributor screen
