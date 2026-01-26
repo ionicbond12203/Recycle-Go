@@ -4,6 +4,9 @@ import { APP_KNOWLEDGE } from "./knowledgeBase";
 const API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY || "";
 const TAVILY_KEY = process.env.EXPO_PUBLIC_TAVILY_API_KEY || "";
 
+// Reuse for general translation/extraction
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${API_KEY}`;
+
 interface ChatMessage {
     id: string;
     text: string;
@@ -18,7 +21,7 @@ export async function askGemini(prompt: string, history: ChatMessage[] = []): Pr
 
     // Using Raw REST API to avoid SDK polyfill issues in React Native
     // Model: gemini-flash-latest (Standard Free Tier)
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${API_KEY}`;
+    const url = GEMINI_URL;
 
     // Build history context
     const historyContext = history.map(m => `${m.sender === 'user' ? 'User' : 'Assistant'}: ${m.text}`).join('\n');
@@ -71,35 +74,49 @@ export async function askGemini(prompt: string, history: ChatMessage[] = []): Pr
 }
 
 // Using Tavily Search API for real-time web results
-export async function getDailyTip(): Promise<{ tip: string; url: string }> {
+export async function getDailyTip(language: 'en' | 'zh' | 'ms' = 'en'): Promise<{ tip: string; url: string }> {
     if (!TAVILY_KEY) {
         console.warn("Missing Tavily Key, using fallback");
         return { tip: "Recycling saves energy!", url: "https://www.google.com/search?q=recycling+tips" };
     }
 
-    // Randomize query to get different tips each time
-    const queries = [
-        "recycling news",
-        "plastic recycling",
-        "waste management",
-        "sustainability tips",
-        "recycling industry update",
-        "circular economy",
-        "advanced recycling",
-        "e-waste recycling"
-    ];
-    const randomQuery = queries[Math.floor(Math.random() * queries.length)];
+    // Configuration based on language
+    const langConfig = {
+        en: {
+            queries: [
+                "recycling news Malaysia",
+                "plastic recycling initiatives Malaysia",
+                "waste management updates Malaysia",
+                "sustainability tips for Malaysians",
+                "e-waste recycling centers Malaysia"
+            ],
+            domains: ["thestar.com.my", "nst.com.my", "malaysiakini.com", "resource-recycling.com", "waste360.com"]
+        },
+        zh: {
+            queries: [
+                "马来西亚 再循环 统考 环保教育",
+                "马来西亚 绿色经济 政策  recycling",
+                "马来西亚 垃圾分类 成功案例",
+                "马来西亚 环境保护 经济议题",
+                "马来西亚 循环经济 资讯"
+            ],
+            domains: ["sinchew.com.my", "orientaldaily.com.my", "chinapress.com.my", "enanyang.my", "bernama.com", "berita.rtm.gov.my"]
+        },
+        ms: {
+            queries: [
+                "berita kitar semula malaysia",
+                "inisiatif sisa sifar malaysia",
+                "pengurusan sampah lestari malaysia",
+                "tips alam sekitar malaysia",
+                "kitar semula sisa elektronik malaysia"
+            ],
+            domains: ["bharian.com.my", "hmetro.com.my", "utusan.com.my", "kosmo.com.my"]
+        }
+    };
 
-    // Trusted recycling news sources ONLY
-    const trustedDomains = [
-        "resource-recycling.com",
-        "waste360.com",
-        "wastedive.com",
-        "recyclinginside.com",
-        "recyclingtoday.com",
-        "plasticstoday.com",
-        "circularonline.co.uk"
-    ];
+    const config = langConfig[language] || langConfig.en;
+    const randomQuery = config.queries[Math.floor(Math.random() * config.queries.length)];
+    const trustedDomains = config.domains;
 
     try {
         const response = await fetch("https://api.tavily.com/search", {
@@ -118,19 +135,74 @@ export async function getDailyTip(): Promise<{ tip: string; url: string }> {
         const result = data.results?.[0];
 
         if (result) {
-            // Truncate if too long
-            const shortTip = result.content.length > 100
-                ? result.content.substring(0, 97) + "..."
-                : result.content;
+            // Use Gemini to EXTRACT the tip and TRANSLATE in one go
+            // This filters out "Newsletter", "Weekly" noise and ensures proper language
+            const langMap: Record<string, string> = { en: 'English', zh: 'Simplified Chinese', ms: 'Malay' };
+            const targetLangName = langMap[language] || 'English';
+
+            const extractionPayload = {
+                contents: [{
+                    parts: [{
+                        text: `You are a strict data extraction tool.
+                        
+                        TASK: 
+                        1. Detect the language of the provided TEXT below.
+                        2. If the TEXT language DOES NOT MATCH "${targetLangName}", return EXACTLY the word: "FALLBACK".
+                        3. If it MATCHES, extract a concise recycling tip or news fact strictly from that TEXT.
+                        
+                        RULES:
+                        - DO NOT use outside knowledge.
+                        - DO NOT translate the information if the source language is different. 
+                        - The output MUST be in ${targetLangName}.
+                        - FILTER OUT all noise: newsletter signups, website UI, ads.
+                        - Keep it concise (2-3 sentences max).
+                        - Ground all numbers and facts in the provided text.
+
+                        TEXT TO ANALYZE AND EXTRACT FROM:
+                        ${result.content.substring(0, 1500)}`
+                    }]
+                }]
+            };
+
+            try {
+                const geminiResp = await fetch(GEMINI_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(extractionPayload)
+                });
+                const geminiData = await geminiResp.json();
+                const extractedTip = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+
+                if (extractedTip && !extractedTip.includes("FALLBACK")) {
+                    return {
+                        tip: extractedTip,
+                        url: result.url
+                    };
+                }
+            } catch (err) {
+                console.error("Gemini Extraction Error:", err);
+            }
+
+            // Fallback if Gemini fails but we have search text (though it might be noisy)
             return {
-                tip: shortTip,
+                tip: result.content.substring(0, 120) + "...",
                 url: result.url
             };
         }
 
-        return { tip: "Reduce, Reuse, Recycle!", url: "https://www.google.com/search?q=recycling" };
+        const defaultTips: Record<string, string> = {
+            en: "Reduce, Reuse, Recycle! Every item counts in building a sustainable Malaysia. 🌿",
+            zh: "减少、再利用、回收！每一件物品都在为建设可持续发展的马来西亚做贡献。🌿",
+            ms: "Kurangkan, Guna Semula, Kitar Semula! Setiap item penting dalam membina Malaysia yang lestari. 🌿"
+        };
+        return { tip: defaultTips[language] || defaultTips.en, url: "https://www.google.com/search?q=recycling+malaysia" };
     } catch (e) {
         console.error("Tavily Error:", e);
-        return { tip: "Keep our planet clean! 🌍", url: "https://www.google.com/search?q=recycling+tips" };
+        const fallbackTips: Record<string, string> = {
+            en: "Keep our planet clean! 🌍",
+            zh: "保持我们的地球清洁！🌍",
+            ms: "Jaga kebersihan bumi kita! 🌍"
+        };
+        return { tip: fallbackTips[language] || fallbackTips.en, url: "https://www.google.com/search?q=recycling+tips" };
     }
 }

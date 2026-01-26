@@ -1,4 +1,5 @@
 import { FontAwesome, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
@@ -14,7 +15,7 @@ import { GameMechanics } from '../../constants/GameMechanics';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { getDistance, optimizeRoute, optimizeRouteGreen, Point } from '../../lib/algorithms';
+import { getHaversineDistance, Point, RouteMetrics, solveRealTSP } from '../../lib/algorithms';
 import { supabase } from '../../lib/supabase';
 import { ChatMessage, CollectorAppState, Job, MapType } from '../../types';
 import { appleMapStyle } from '../appleMapStyle';
@@ -106,6 +107,25 @@ export default function CollectorHomeScreen() {
    */
   const [algorithmMode, setAlgorithmMode] = useState<'standard' | 'green'>('standard');
 
+  // Helper to re-optimize whenever mode or queue changes
+  const reoptimizeRoute = async (mode: 'standard' | 'green') => {
+    if (activeQueue.length < 2) return;
+
+    const startPoint: Point = { id: 'start', latitude: region.latitude, longitude: region.longitude };
+    try {
+      const result = await solveRealTSP(startPoint, activeQueue, GOOGLE_MAPS_API_KEY, mode);
+      const optimizedJobs = result.path.slice(1).map(p =>
+        activeQueue.find(j => j.id === p.id)
+      ).filter(Boolean) as Job[];
+
+      setActiveQueue(optimizedJobs);
+      setRouteMetrics(result.metrics);
+      setActiveJob(optimizedJobs[0]);
+    } catch (err) {
+      console.error("Optimization failed:", err);
+    }
+  };
+
   // --- Real-time Navigation Logic ---
   /** Full list of maneuvers/steps for the current route leg. */
   const routeStepsRef = useRef<any[]>([]);
@@ -134,17 +154,36 @@ export default function CollectorHomeScreen() {
   const [waitingForConfirmation, setWaitingForConfirmation] = useState(false);
   /** ID of the pending transaction, used to listen for confirmation updates. */
   const [currentTransactionId, setCurrentTransactionId] = useState<string | null>(null);
+  const [routeMetrics, setRouteMetrics] = useState<RouteMetrics | null>(null);
 
   // --- Effects ---
 
   useEffect(() => {
-    if (user) {
-      setCollectorId(user.id);
-    } else {
-      // Fallback for unauthenticated testing (though they should be logged in)
-      setCollectorId(Math.random().toString(36).substring(2, 15));
-    }
+    const initializeCollectorId = async () => {
+      if (user) {
+        console.log("Logged-in user detected:", user.id);
+        setCollectorId(user.id);
+      } else {
+        try {
+          const storedId = await AsyncStorage.getItem('guest_collector_id');
+          console.log("Checking storage for guest ID:", storedId);
+          if (storedId) {
+            setCollectorId(storedId);
+          } else {
+            const newId = `guest_${Math.random().toString(36).substring(2, 11)}`;
+            console.log("Generating new guest ID:", newId);
+            await AsyncStorage.setItem('guest_collector_id', newId);
+            setCollectorId(newId);
+          }
+        } catch (e) {
+          console.error("AsyncStorage error:", e);
+          setCollectorId(`temp_${Math.random().toString(36).substring(2, 8)}`);
+        }
+      }
+    };
+    initializeCollectorId();
   }, [user]);
+
 
   /**
    * Effect: Location Permission & Initial Position
@@ -366,7 +405,7 @@ export default function CollectorHomeScreen() {
     if (steps.length === 0 || index >= steps.length) return;
 
     const currentStep = steps[index];
-    const distToTurn = getDistance(lat, lng, currentStep.end_location.lat, currentStep.end_location.lng);
+    const distToTurn = getHaversineDistance(lat, lng, currentStep.end_location.lat, currentStep.end_location.lng);
 
     // Threshold: 40 meters to consider "arrived" at a waypoint/turn
     if (distToTurn < 40) {
@@ -447,12 +486,18 @@ export default function CollectorHomeScreen() {
     }
 
     try {
-      // 2. Fetch Active Contributors
-      const { data: contributors, error } = await supabase
+      // 2. Fetch Active Contributors OR ones already assigned to this collector
+      // Simplified query to avoid nested AND inside OR for better compatibility
+      const { data: rawContributors, error } = await supabase
         .from('contributors')
         .select('*')
-        .eq('status', 'active')
-        .limit(50); // Fetch ample to filter locally
+        .or(`status.eq.active,collector_id.eq.${collectorId}`)
+        .limit(50);
+
+      // Filter locally to ensure we only get 'active' OR 'assigned to ME'
+      const contributors = (rawContributors || []).filter(c =>
+        c.status === 'active' || (c.status === 'assigned' && c.collector_id === collectorId)
+      );
 
       if (error) throw error;
 
@@ -463,13 +508,13 @@ export default function CollectorHomeScreen() {
       }
 
       const processedJobs: Job[] = [];
-      const MAX_DISTANCE_METERS = 50000; // 50km radius
+      const MAX_DISTANCE_METERS = 10000; // 10km radius
 
       for (const c of contributors) {
         // Skip self if testing on same device/account (optional but good practice)
         if (c.id === collectorId) continue;
 
-        const dist = getDistance(freshRegion.latitude, freshRegion.longitude, c.latitude, c.longitude);
+        const dist = getHaversineDistance(freshRegion.latitude, freshRegion.longitude, c.latitude, c.longitude);
         if (dist > MAX_DISTANCE_METERS) continue;
 
         // Fetch profile
@@ -546,6 +591,56 @@ export default function CollectorHomeScreen() {
     } catch (e) { console.log(e); }
   };
 
+  useEffect(() => {
+    if (!collectorId) return;
+
+    const recoverSession = async () => {
+      console.log("Recovery: Checking for active assigned pickups for:", collectorId);
+      const { data: activePickups, error } = await supabase
+        .from('contributors')
+        .select('*')
+        .eq('status', 'assigned')
+        .eq('collector_id', collectorId)
+        .limit(1);
+
+      if (error) {
+        console.log("Recovery check failed:", error.message);
+        return;
+      }
+
+      if (activePickups && activePickups.length > 0) {
+        const c = activePickups[0];
+        console.log("Recovery: Found active pickup:", c.id);
+
+        // Fetch profile details if possible
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('contact_number, full_name, avatar_url')
+          .eq('id', c.id)
+          .single();
+
+        const recoveredJob: Job = {
+          id: c.id,
+          latitude: c.latitude,
+          longitude: c.longitude,
+          address: "Pickup Location",
+          wasteType: ['Plastic', 'Paper'],
+          status: 'assigned', // Critical: reflect the actual assigned status
+          distanceLabel: "Continuing...",
+          rawDistance: 0,
+          phoneNumber: profile?.contact_number || '',
+          contributorName: profile?.full_name || 'Contributor',
+          contributorAvatar: profile?.avatar_url || ''
+        };
+
+        setActiveJob(recoveredJob);
+        setAppState('navigating');
+        resolveAddressForJob(recoveredJob);
+      }
+    };
+    recoverSession();
+  }, [collectorId]);
+
   const handleMarkerPress = (job: Job) => {
     setActiveJob(job);
     setRouteInfo(null);
@@ -587,24 +682,30 @@ export default function CollectorHomeScreen() {
       return;
     }
 
-    // Optimize Route
+    // Optimize Route using Real Google Data (Matrix + Elevation)
     const startPoint: Point = { id: 'start', latitude: region.latitude, longitude: region.longitude };
-    const points: Point[] = activeQueue.map(j => ({ id: j.id, latitude: j.latitude, longitude: j.longitude }));
 
-    let optimizedPoints: Point[] = [];
-    if (algorithmMode === 'green') {
-      optimizedPoints = optimizeRouteGreen(startPoint, points);
-    } else {
-      optimizedPoints = optimizeRoute(startPoint, points);
-    }
+    // Set a loading state before starting async optimization
+    setAppState('searching');
 
-    // Reorder activeQueue based on optimizedPoints
-    const sortedQueue = optimizedPoints.map(p => activeQueue.find(j => j.id === p.id)!).filter(Boolean);
+    solveRealTSP(startPoint, activeQueue, GOOGLE_MAPS_API_KEY, algorithmMode)
+      .then(result => {
+        // Map Point results back to the original Job objects to preserve all fields (address, name, etc.)
+        const optimizedJobs = result.path.slice(1).map(p =>
+          activeQueue.find(j => j.id === p.id)
+        ).filter(Boolean) as Job[];
 
-    setActiveQueue(sortedQueue);
+        setActiveQueue(optimizedJobs);
+        setRouteMetrics(result.metrics); // Store for research display
+        handleAcceptJob(optimizedJobs[0]);
 
-    // Start with the first one
-    handleAcceptJob(sortedQueue[0]);
+        console.log("Real Road Results:", result.metrics);
+      })
+      .catch(err => {
+        console.error("TSP Error:", err);
+        Alert.alert("Optimization Error", "Failed to calculate real-world route.");
+        setAppState('request_received');
+      });
   };
 
   const handleAcceptJob = async (job: Job) => {
@@ -618,11 +719,22 @@ export default function CollectorHomeScreen() {
         .update({ status: 'assigned', collector_id: collectorId })
         .eq('id', job.id)
         .select();
-
       if (error) {
         console.error("Failed to update status to assigned:", error);
-      } else {
-        console.log("Status updated to assigned. Rows affected:", data?.length);
+        throw error;
+      }
+
+      console.log("Status updated to assigned. Rows affected:", data?.length);
+
+      // 2. If it's a single accept (not via handleStartRoute), calculate metrics for research
+      if (appState !== 'searching') {
+        const startPoint: Point = { id: 'start', latitude: region.latitude, longitude: region.longitude };
+        solveRealTSP(startPoint, [job], GOOGLE_MAPS_API_KEY, algorithmMode)
+          .then(result => {
+            setRouteMetrics(result.metrics);
+            console.log("Single Job Real Metrics:", result.metrics);
+          })
+          .catch(err => console.error("Single Job Metric Error:", err));
       }
 
       setActiveJob(job);
@@ -635,8 +747,9 @@ export default function CollectorHomeScreen() {
           { edgePadding: { top: 100, right: 50, bottom: 250, left: 50 }, animated: true }
         );
       }
-    } catch (error) {
-      console.error("Error accepting job:", error);
+    } catch (err) {
+      console.error("Error accepting job:", err);
+      Alert.alert("Error", "Could not assign job to you.");
     }
   };
 
@@ -794,7 +907,10 @@ export default function CollectorHomeScreen() {
         <View style={{ marginLeft: 10, flex: 1 }}>
           <Text style={styles.requestAddress}>{activeJob?.address}</Text>
           <Text style={styles.requestDistance}>
-            {routeInfo ? `${(routeInfo.distance).toFixed(1)} km • ${(routeInfo.duration).toFixed(0)} min` : `${activeJob?.distanceLabel} • Estimating route...`}
+            {routeInfo ?
+              `${(routeInfo.distance).toFixed(2)} km • ${(routeInfo.duration).toFixed(0)} min` :
+              `${activeJob?.distanceLabel} • Estimating route...`
+            }
           </Text>
         </View>
       </View>
@@ -802,12 +918,18 @@ export default function CollectorHomeScreen() {
       {/* Algorithm Toggle */}
       <View style={{ flexDirection: 'row', backgroundColor: '#eee', borderRadius: 8, padding: 4, marginHorizontal: 20, marginBottom: 15 }}>
         <TouchableOpacity
-          onPress={() => setAlgorithmMode('standard')}
+          onPress={() => {
+            setAlgorithmMode('standard');
+            if (activeQueue.length > 1) reoptimizeRoute('standard');
+          }}
           style={{ flex: 1, padding: 8, borderRadius: 6, backgroundColor: algorithmMode === 'standard' ? '#fff' : 'transparent', alignItems: 'center', shadowOpacity: algorithmMode === 'standard' ? 0.1 : 0 }}>
           <Text style={{ fontWeight: algorithmMode === 'standard' ? 'bold' : 'normal', color: algorithmMode === 'standard' ? '#007AFF' : '#666' }}>Standard</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          onPress={() => setAlgorithmMode('green')}
+          onPress={() => {
+            setAlgorithmMode('green');
+            if (activeQueue.length > 1) reoptimizeRoute('green');
+          }}
           style={{ flex: 1, padding: 8, borderRadius: 6, backgroundColor: algorithmMode === 'green' ? '#E8F5E9' : 'transparent', alignItems: 'center', shadowOpacity: algorithmMode === 'green' ? 0.1 : 0 }}>
           <Text style={{ fontWeight: algorithmMode === 'green' ? 'bold' : 'normal', color: algorithmMode === 'green' ? '#38761D' : '#666' }}>🌱 Green (Eco)</Text>
         </TouchableOpacity>
@@ -850,16 +972,43 @@ export default function CollectorHomeScreen() {
           <Text style={styles.navSub}>ID: {activeJob?.id.substring(0, 8)}</Text>
         </View>
         <View style={styles.statsContainer}>
-          <Text style={styles.navTime}>{routeInfo ? Math.ceil(routeInfo.duration) : 0} min</Text>
-          <Text style={styles.navDist}>{routeInfo ? (routeInfo.distance).toFixed(1) : 0.0} km</Text>
+          <Text style={styles.navTime}>
+            {routeMetrics ? Math.ceil(routeMetrics.duration / 60) : (routeInfo ? Math.ceil(routeInfo.duration) : 0)} min
+          </Text>
+          <Text style={styles.navDist}>
+            {routeMetrics ? (routeMetrics.distance / 1000).toFixed(2) : (routeInfo ? (routeInfo.distance).toFixed(2) : "0.00")} km
+          </Text>
         </View>
       </View>
 
       {algorithmMode === 'green' && (
-        <View style={{ position: 'absolute', top: -30, right: 20, backgroundColor: '#E8F5E9', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, borderWidth: 1, borderColor: '#38761D', flexDirection: 'row', alignItems: 'center' }}>
-          <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#38761D' }}>🌱 Est. CO2 Saved: 1.2kg</Text>
+        <View style={{ backgroundColor: '#E8F5E9', padding: 8, marginHorizontal: 20, borderRadius: 8, marginBottom: 10 }}>
+          <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#38761D' }}>
+            🌱 Green Mode Active: Energy-Aware Routing
+          </Text>
         </View>
       )}
+
+      {routeMetrics && (
+        <View style={{ backgroundColor: colors.border, padding: 12, marginHorizontal: 20, borderRadius: 10, marginBottom: 15 }}>
+          <Text style={{ fontSize: 13, fontWeight: 'bold', color: colors.text, marginBottom: 5 }}>📊 Optimization Stats (Real-Road)</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <View>
+              <Text style={{ fontSize: 11, color: colors.textSecondary }}>Distance</Text>
+              <Text style={{ fontWeight: 'bold', color: colors.text }}>{(routeMetrics.distance / 1000).toFixed(2)} km</Text>
+            </View>
+            <View>
+              <Text style={{ fontSize: 11, color: colors.textSecondary }}>Elev. Gain</Text>
+              <Text style={{ fontWeight: 'bold', color: colors.text }}>{routeMetrics.elevationGain.toFixed(1)} m</Text>
+            </View>
+            <View>
+              <Text style={{ fontSize: 11, color: colors.textSecondary }}>Energy Score</Text>
+              <Text style={{ fontWeight: 'bold', color: colors.primary }}>{Math.round(routeMetrics.energyScore)}</Text>
+            </View>
+          </View>
+        </View>
+      )}
+
 
       <View style={{ flexDirection: 'row', gap: 10 }}>
         <TouchableOpacity style={styles.contactButton} onPress={() => {
@@ -872,7 +1021,7 @@ export default function CollectorHomeScreen() {
           <Text style={styles.buttonText}>{t('collector.startNav')}</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </View >
   );
 
   // ... (Keeping internal/external navigation overlays exactly as they were)
@@ -1049,10 +1198,19 @@ export default function CollectorHomeScreen() {
         {(appState === 'request_received' || appState === 'navigating' || appState === 'driving' || appState === 'arrived') && activeJob && (
           <MapViewDirections
             origin={{ latitude: region.latitude, longitude: region.longitude }}
-            destination={{ latitude: activeJob.latitude, longitude: activeJob.longitude }}
+            destination={
+              activeQueue.length > 1
+                ? { latitude: activeQueue[activeQueue.length - 1].latitude, longitude: activeQueue[activeQueue.length - 1].longitude }
+                : { latitude: activeJob.latitude, longitude: activeJob.longitude }
+            }
+            waypoints={
+              activeQueue.length > 1
+                ? activeQueue.slice(0, -1).map(j => ({ latitude: j.latitude, longitude: j.longitude }))
+                : undefined
+            }
             apikey={GOOGLE_MAPS_API_KEY || ""}
             strokeWidth={appState === 'driving' && navigationMode === 'internal' ? 8 : 5}
-            strokeColor={colors.mapRoute}
+            strokeColor={algorithmMode === 'green' ? '#38761D' : colors.mapRoute}
             mode="DRIVING"
             onReady={(result) => { setRouteInfo({ distance: result.distance, duration: result.duration }); }}
           />

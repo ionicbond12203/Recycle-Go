@@ -12,10 +12,12 @@ Recycle Go makes recycling effortless by using **Google Cloud Vision AI** to ins
 - **Instant Recognition**: Just snap a photo, and the app identifies materials (Plastic, Glass, Paper) using Google Cloud Vision API.
 - **Smart Classification**: Automtically categorizes items and estimates their point value and CO2 savings.
 
-### 📍 Real-Time Collection
-- **Live Tracking**: View nearby collectors on an interactive map (LBS).
-- **On-Demand Dispatch**: Request a pickup and track the collector's route to your location in real-time.
-- **Verification System**: Secure transaction flow where collectors weigh and verify items before points are awarded.
+### 📍 Real-Time Collection & Smart Routing
+- **Energy-Aware "Real Green" Algorithm**: Beyond simple shortest-distance math, this project implements a custom energy consumption model that integrates:
+    - **Google Distance Matrix API**: For real-road distances and congestion data.
+    - **Google Elevation API**: For terrain slope analysis (Energy = distance + uphill resistance).
+- **Multi-Stop TSP Optimization**: Traveling Salesperson (TSP) logic reorders pickup queues in real-time to find the globally optimal route across multiple contributors.
+- **Live Tracking & Privacy**: Real-time geolocation using Supabase WebSockets, with automatic privacy cut-off (auto-redirect to Home) once a collection is verified.
 
 ### 🎮 Gamification & Rewards
 - **Eco-Points System**: Earn points for every successful recycle.

@@ -23,7 +23,7 @@ export interface Job {
     longitude: number;
     address: string;
     wasteType: string[];
-    status: 'pending' | 'accepted' | 'completed';
+    status: 'pending' | 'accepted' | 'completed' | 'assigned';
     distanceLabel: string;
     rawDistance: number;
     phoneNumber?: string;

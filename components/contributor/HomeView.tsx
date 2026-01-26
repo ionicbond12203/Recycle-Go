@@ -41,10 +41,11 @@ interface HomeViewProps {
     recentTransactions?: any[];
     onStartScan: () => void;
     onManualAdd: () => void;
+    onProfilePress?: () => void;
 }
 
-export default function HomeView({ stats, userLocation, avatarUrl, recentTransactions = [], onStartScan, onManualAdd }: HomeViewProps) {
-    const { t } = useLanguage();
+export default function HomeView({ stats, userLocation, avatarUrl, recentTransactions = [], onStartScan, onManualAdd, onProfilePress }: HomeViewProps) {
+    const { t, language } = useLanguage();
     // ... (rest of local state) as before
     const { isDark } = useTheme();
     const theme = isDark ? CONTRIBUTOR_THEME.dark : CONTRIBUTOR_THEME.light;
@@ -56,8 +57,8 @@ export default function HomeView({ stats, userLocation, avatarUrl, recentTransac
     const [dailyTip, setDailyTip] = useState<{ tip: string, url: string } | null>(null);
 
     useEffect(() => {
-        getDailyTip().then(setDailyTip);
-    }, []);
+        getDailyTip(language).then(setDailyTip);
+    }, [language]);
 
     // Smart name fallback
     const displayName = profile?.full_name || profile?.email?.split('@')[0] || "User";
@@ -85,9 +86,13 @@ export default function HomeView({ stats, userLocation, avatarUrl, recentTransac
                 </View>
                 <View style={styles.headerActions}>
                     <LanguageSwitcher />
-                    <View style={[styles.avatarContainer, { borderColor: theme.card }]}>
+                    <TouchableOpacity
+                        style={[styles.avatarContainer, { borderColor: theme.card }]}
+                        onPress={onProfilePress}
+                        activeOpacity={0.7}
+                    >
                         <Image source={{ uri: avatarUrl || Assets.PLACEHOLDERS.AVATAR }} style={styles.avatarImg} />
-                    </View>
+                    </TouchableOpacity>
                 </View>
             </View>
 

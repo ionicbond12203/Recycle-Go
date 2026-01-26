@@ -265,6 +265,48 @@ export default function ContributorPage() {
     return () => { supabase.removeChannel(channel); };
   }, [deviceId]);
 
+  // --- PRIVACY & NAVIGATION HELPERS ---
+  const clearTrackingState = () => {
+    setCollectorLocation(null);
+    setCurrentCollectorId(null);
+    setCollectorPhone(null);
+    setCollectorName(null);
+    setCollectorAvatar(null);
+    setRouteInfo(null);
+    setIsChatOpen(false);
+  };
+
+  // --- JOB STATUS LISTENER (Privacy Redirect) ---
+  useEffect(() => {
+    if (!deviceId) return;
+
+    const channel = supabase.channel(`status-watch-${deviceId}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'contributors',
+        filter: `id=eq.${deviceId}`
+      }, (payload) => {
+        const newStatus = payload.new.status;
+
+        if (newStatus === 'completed') {
+          clearTrackingState();
+          setCart([]); // Clear cart as well
+          setCurrentScreen('home');
+          // No alert here to allow for the verification modal's alert to handle it if applicable,
+          // but if it's a remote completion, the redirect is smooth.
+        } else if (newStatus === 'active' && currentScreen === 'tracking') {
+          // If collector unassigns, go back to cart/setup
+          clearTrackingState();
+          setCurrentScreen('cart');
+          Alert.alert("Pickup Cancelled", "The collector is no longer assigned to this session.");
+        }
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [deviceId, currentScreen]);
+
   const analyzeImage = async (base64: string, uri: string) => {
     setAnalyzing(true);
     try {
@@ -561,12 +603,8 @@ export default function ContributorPage() {
       setPendingTransaction(null);
       setCart([]);
 
-      // Clear Tracking State
-      setCollectorLocation(null);
-      setCurrentCollectorId(null);
-      setCollectorPhone(null);
-      setRouteInfo(null);
-      setIsChatOpen(false);
+      // Clear Tracking State using helper
+      clearTrackingState();
 
       setCurrentScreen('home');
       Alert.alert(t('actions.collectionVerified'), t('actions.youEarnedPoints').replace('{points}', earnedPoints.toString()).replace('{weight}', weight));
@@ -732,6 +770,7 @@ export default function ContributorPage() {
           recentTransactions={recentTransactions}
           onStartScan={pickImage}
           onManualAdd={() => setManualModalOpen(true)}
+          onProfilePress={() => setCurrentScreen('profile')}
         />
       )}
 
