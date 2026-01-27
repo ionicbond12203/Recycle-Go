@@ -13,7 +13,7 @@
  * @see {@link https://docs.expo.dev/router/advanced/tabs/} for Expo Router tabs documentation
  */
 
-import { FontAwesome, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
+import { FontAwesome, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import React from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -106,15 +106,6 @@ export default function TabLayout() {
           options={{
             title: t('tabs.earnings'),
             tabBarIcon: ({ color }) => <MaterialCommunityIcons name="wallet" size={24} color={color} />,
-          }}
-        />
-
-        {/* INBOX TAB - Notifications and messages from admin/system */}
-        <Tabs.Screen
-          name="inbox"
-          options={{
-            title: t('tabs.inbox'),
-            tabBarIcon: ({ color }) => <MaterialIcons name="mail" size={24} color={color} />,
           }}
         />
 
