@@ -128,10 +128,12 @@ export default function EarningsScreen() {
         {/* Efficiency Stats Row */}
         <View style={styles.statsRow}>
           <View style={[styles.statBox, { backgroundColor: currentTheme.cardBg, borderColor: currentTheme.border }]}>
+            <MaterialCommunityIcons name="scale-balance" size={22} color={currentTheme.accent} style={{ marginBottom: 8 }} />
             <Text style={[styles.statValue, { color: currentTheme.accent }]}>{balance.toFixed(1)}kg</Text>
             <Text style={[styles.statLabel, { color: currentTheme.textSecondary }]}>Total Recycled</Text>
           </View>
           <View style={[styles.statBox, { backgroundColor: currentTheme.cardBg, borderColor: currentTheme.border }]}>
+            <MaterialCommunityIcons name="lightning-bolt" size={22} color={currentTheme.accent} style={{ marginBottom: 8 }} />
             <Text style={[styles.statValue, { color: currentTheme.accent }]}>98%</Text>
             <Text style={[styles.statLabel, { color: currentTheme.textSecondary }]}>Green Efficiency</Text>
           </View>

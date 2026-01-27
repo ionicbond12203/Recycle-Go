@@ -132,18 +132,21 @@ export default function HomeView({ stats, userLocation, avatarUrl, recentTransac
                         <View style={styles.impactGrid}>
                             {/* Points */}
                             <View style={styles.impactItem}>
+                                <MaterialCommunityIcons name="star-four-points" size={20} color={isDark ? theme.primary : '#065F46'} style={{ marginBottom: 4 }} />
                                 <Text style={[styles.impactValue, { color: isDark ? '#FFF' : '#064E3B' }]}>{stats.points.toLocaleString()}</Text>
                                 <Text style={[styles.impactLabel, { color: isDark ? 'rgba(255,255,255,0.7)' : '#065F46' }]}>{t('home.points')}</Text>
                             </View>
 
                             {/* CO2 (Bordered) */}
                             <View style={[styles.impactItem, styles.impactItemBorder, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(16,185,129,0.3)' }]}>
+                                <MaterialCommunityIcons name="leaf" size={20} color="#059669" style={{ marginBottom: 4 }} />
                                 <Text style={[styles.impactValue, { color: '#059669' }]}>{stats.savedCO2}</Text>
                                 <Text style={[styles.impactLabel, { color: isDark ? 'rgba(255,255,255,0.7)' : '#065F46' }]}>{t('home.savedCO2')}</Text>
                             </View>
 
                             {/* Items */}
                             <View style={styles.impactItem}>
+                                <MaterialCommunityIcons name="recycle" size={20} color={isDark ? theme.primary : '#065F46'} style={{ marginBottom: 4 }} />
                                 <Text style={[styles.impactValue, { color: isDark ? '#FFF' : '#064E3B' }]}>{stats.recycled}</Text>
                                 <Text style={[styles.impactLabel, { color: isDark ? 'rgba(255,255,255,0.7)' : '#065F46' }]}>KG RECYCLED</Text>
                             </View>

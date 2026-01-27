@@ -91,6 +91,7 @@ export default function ContributorPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loadingUpload, setLoadingUpload] = useState(false);
   const [isEcoBotOpen, setIsEcoBotOpen] = useState(false);
+  const [isActive, setIsActive] = useState(false); // New: track if request is live
 
   useEffect(() => {
     // Set device ID: use user.id for logged in users, or a temp guest ID
@@ -205,6 +206,11 @@ export default function ContributorPage() {
     const checkPending = async () => {
       const { data } = await supabase.from('transactions').select('*').eq('contributor_id', user.id).eq('status', 'pending').order('created_at', { ascending: false }).limit(1).single();
       if (data) setPendingTransaction(data);
+
+      // Also check if contributor itself is active (waiting for collector)
+      const { data: contData } = await supabase.from('contributors').select('status').eq('id', user.id).single();
+      if (contData?.status === 'active') setIsActive(true);
+      else setIsActive(false);
     };
     checkPending();
 
@@ -292,6 +298,7 @@ export default function ContributorPage() {
         if (newStatus === 'completed') {
           clearTrackingState();
           setCart([]); // Clear cart as well
+          setIsActive(false);
           setCurrentScreen('home');
           // No alert here to allow for the verification modal's alert to handle it if applicable,
           // but if it's a remote completion, the redirect is smooth.
@@ -299,7 +306,12 @@ export default function ContributorPage() {
           // If collector unassigns, go back to cart/setup
           clearTrackingState();
           setCurrentScreen('cart');
+          // Keep isActive true because the request is still there (status: active in DB)
+          // or if the whole thing is cancelled, we handles that.
           Alert.alert("Pickup Cancelled", "The collector is no longer assigned to this session.");
+        } else if (newStatus === 'idle') {
+          setIsActive(false);
+          clearTrackingState();
         }
       })
       .subscribe();
@@ -500,6 +512,7 @@ export default function ContributorPage() {
         { onConflict: "id" }
       );
       if (error) throw error;
+      setIsActive(true);
       Alert.alert(`✅ ${t('actions.requestSent')}`, t('actions.waitingForCollector'));
     } catch (error: any) {
       Alert.alert(t('actions.error'), error.message);
@@ -785,6 +798,7 @@ export default function ContributorPage() {
       {currentScreen === 'cart' && (
         <CartView
           cart={cart}
+          isLocked={isActive || !!currentCollectorId}
           onUpdateQuantity={(id, delta) => {
             setCart(prev => prev.map(item => item.id === id ? { ...item, quantity: Math.max(0, item.quantity + delta) } : item).filter(i => i.quantity > 0));
           }}

@@ -20,9 +20,10 @@ interface CartViewProps {
     onAddMore: () => void;
     onReviewAddress: () => void;
     onBack: () => void;
+    isLocked?: boolean;
 }
 
-export default function CartView({ cart, onUpdateQuantity, onAddMore, onReviewAddress, onBack }: CartViewProps) {
+export default function CartView({ cart, onUpdateQuantity, onAddMore, onReviewAddress, onBack, isLocked }: CartViewProps) {
     const { t } = useLanguage();
     const { colors, isDark } = useTheme();
     return (
@@ -39,12 +40,20 @@ export default function CartView({ cart, onUpdateQuantity, onAddMore, onReviewAd
                         <Image source={{ uri: item.imageUri }} style={[styles.cartItemImage, { backgroundColor: colors.border }]} />
                         <View style={styles.cartItemInfo}>
                             <Text style={[styles.cartItemName, { color: colors.text }]}>{item.name} ({item.material})</Text>
-                            <View style={[styles.qtyControl, { backgroundColor: colors.backgroundSecondary }]}>
-                                <TouchableOpacity onPress={() => onUpdateQuantity(item.id, -1)} style={styles.qtyBtn}>
+                            <View style={[styles.qtyControl, { backgroundColor: colors.backgroundSecondary, opacity: isLocked ? 0.5 : 1 }]}>
+                                <TouchableOpacity
+                                    onPress={() => !isLocked && onUpdateQuantity(item.id, -1)}
+                                    style={styles.qtyBtn}
+                                    disabled={isLocked}
+                                >
                                     {item.quantity === 1 ? <Ionicons name="trash-outline" size={16} color="red" /> : <Text style={{ color: colors.text }}>-</Text>}
                                 </TouchableOpacity>
                                 <Text style={[styles.qtyText, { color: colors.text }]}>{item.quantity}</Text>
-                                <TouchableOpacity onPress={() => onUpdateQuantity(item.id, 1)} style={styles.qtyBtn}>
+                                <TouchableOpacity
+                                    onPress={() => !isLocked && onUpdateQuantity(item.id, 1)}
+                                    style={styles.qtyBtn}
+                                    disabled={isLocked}
+                                >
                                     <Text style={{ color: colors.text }}>+</Text>
                                 </TouchableOpacity>
                             </View>
@@ -52,7 +61,11 @@ export default function CartView({ cart, onUpdateQuantity, onAddMore, onReviewAd
                     </View>
                 ))}
 
-                <TouchableOpacity style={[styles.addMoreBtn, { marginBottom: 100 }]} onPress={onAddMore}>
+                <TouchableOpacity
+                    style={[styles.addMoreBtn, { marginBottom: 100, opacity: isLocked ? 0.5 : 1 }]}
+                    onPress={() => !isLocked && onAddMore()}
+                    disabled={isLocked}
+                >
                     <Text style={[styles.addMoreText, { color: colors.text }]}>{t('actions.addMoreItems')}</Text>
                 </TouchableOpacity>
             </ScrollView>

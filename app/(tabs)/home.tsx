@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Dimensions, Image, Linking, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, BackHandler, Dimensions, Image, Linking, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import MapViewDirections from 'react-native-maps-directions';
@@ -246,6 +246,42 @@ export default function CollectorHomeScreen() {
    * Edge Case: Filters messages to ensure they belong to the current active job context,
    * preventing cross-talk if multiple jobs are active in background (theoretical).
    */
+  useEffect(() => {
+    const backAction = () => {
+      // Logic-based back navigation through application states
+      if (appState === 'searching' || appState === 'request_received') {
+        setAppState('idle');
+        setAvailableJobs([]);
+        setActiveJob(null);
+        return true; // Don't exit, just go back to idle
+      }
+
+      if (appState === 'navigating') {
+        setAppState('request_received');
+        return true; // Go back to the request popup or searching state
+      }
+
+      // If driving or arrived, we still alert before "backing out" of an active mission
+      if (appState === 'driving' || appState === 'arrived') {
+        Alert.alert(
+          t('common.wait') || "Active Mission",
+          "Please finish or cancel your current job before going back.",
+          [{ text: "OK", onPress: () => null }]
+        );
+        return true;
+      }
+
+      return false; // In 'idle' state, allow default back behavior (exit)
+    };
+
+    const backHandler = BackHandler.addEventListener(
+      "hardwareBackPress",
+      backAction
+    );
+
+    return () => backHandler.remove();
+  }, [appState, activeQueue.length]);
+
   useEffect(() => {
     if (!activeJob || !collectorId) return;
 
@@ -899,48 +935,56 @@ export default function CollectorHomeScreen() {
    * Also allows toggling the Algorithm Mode (Standard vs Green).
    */
   const renderRequestPopup = () => (
-    <View style={[styles.requestCard, { bottom: 100 + insets.bottom, backgroundColor: isDark ? 'rgba(30,30,30,0.85)' : 'rgba(255,255,255,0.9)', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
+    <View style={[
+      styles.requestCard,
+      {
+        bottom: 120 + insets.bottom,
+        backgroundColor: isDark ? 'rgba(30, 32, 30, 0.98)' : 'rgba(255, 255, 255, 0.98)',
+        borderColor: colors.border
+      }
+    ]}>
       <View style={styles.requestHeader}>
         <TouchableOpacity onPress={() => setShowDetailModal(true)}>
-          <Image source={{ uri: activeJob?.contributorAvatar || "https://i.pravatar.cc/150?u=default" }} style={styles.requestAvatar} />
+          <Image
+            source={{ uri: activeJob?.contributorAvatar || "https://i.pravatar.cc/150?u=default" }}
+            style={[styles.requestAvatar, { borderColor: isDark ? '#10B981' : '#F1F5F9' }]}
+          />
         </TouchableOpacity>
-        <View style={{ marginLeft: 15, flex: 1 }}>
-          <Text style={[styles.requestAddress, { color: colors.text }]}>{activeJob?.address}</Text>
+        <View style={{ flex: 1, marginLeft: 16 }}>
+          <Text style={[styles.requestAddress, { color: colors.text }]} numberOfLines={1}>{activeJob?.address || "Unknown Location"}</Text>
           <Text style={[styles.requestDistance, { color: colors.textSecondary }]}>
-            {routeInfo ?
-              `${(routeInfo.distance).toFixed(2)} km • ${(routeInfo.duration).toFixed(0)} min` :
-              `${activeJob?.distanceLabel} • Estimating...`
-            }
+            {routeInfo ? `${(routeInfo.distance).toFixed(2)} km • ${(routeInfo.duration).toFixed(0)} min` : `${activeJob?.distanceLabel}`}
           </Text>
         </View>
-        <View style={[styles.queueBadge, { backgroundColor: colors.primary + '20' }]}>
+        <View style={[styles.queueBadge, { backgroundColor: isDark ? 'rgba(16,185,129,0.2)' : '#F0FDF4' }]}>
           <Text style={[styles.queueText, { color: colors.primary }]}>{activeQueue.length + 1}th Stop</Text>
         </View>
       </View>
 
-      {/* Algorithm Toggle - Modern Pill */}
-      <View style={[styles.algoTogglePill, { backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : '#F1F5F9' }]}>
+      <View style={[styles.algoTogglePill, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F8FAFC' }]}>
         <TouchableOpacity
-          onPress={() => {
-            setAlgorithmMode('standard');
-            if (activeQueue.length > 1) reoptimizeRoute('standard');
-          }}
-          style={[styles.algoOption, algorithmMode === 'standard' && { backgroundColor: '#FFF', shadowOpacity: 0.1, elevation: 2 }]}>
-          <Text style={[styles.algoText, { color: algorithmMode === 'standard' ? colors.primaryDark : colors.textTertiary }]}>Standard</Text>
+          style={[styles.algoOption, algorithmMode === 'standard' && { backgroundColor: isDark ? '#333' : '#FFF', elevation: 2 }]}
+          onPress={() => setAlgorithmMode('standard')}
+        >
+          <Text style={[styles.algoText, { color: algorithmMode === 'standard' ? colors.primary : colors.textSecondary }]}>Standard</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          onPress={() => {
-            setAlgorithmMode('green');
-            if (activeQueue.length > 1) reoptimizeRoute('green');
-          }}
-          style={[styles.algoOption, algorithmMode === 'green' && { backgroundColor: colors.primary, shadowOpacity: 0.2, elevation: 4 }]}>
-          <Text style={[styles.algoText, { color: algorithmMode === 'green' ? '#FFF' : colors.textTertiary, fontWeight: '800' }]}>🌱 Green (Eco)</Text>
+          style={[styles.algoOption, algorithmMode === 'green' && { backgroundColor: isDark ? '#333' : '#FFF', elevation: 2 }]}
+          onPress={() => setAlgorithmMode('green')}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <MaterialCommunityIcons name="leaf" size={16} color={algorithmMode === 'green' ? colors.primary : colors.textSecondary} />
+            <Text style={[styles.algoText, { color: algorithmMode === 'green' ? colors.primary : colors.textSecondary }]}>Green (Eco)</Text>
+          </View>
         </TouchableOpacity>
       </View>
 
       <View style={styles.requestButtons}>
-        <TouchableOpacity style={[styles.acceptButton, { backgroundColor: colors.secondary + '20', borderWidth: 1, borderColor: colors.secondary }]} onPress={handleAddToQueue}>
-          <Text style={[styles.buttonText, { color: colors.secondary }]}>+ Queue Post</Text>
+        <TouchableOpacity
+          style={[styles.acceptButton, { backgroundColor: isDark ? 'rgba(16,185,129,0.15)' : '#DEF7EC', borderWidth: 1, borderColor: colors.primary }]}
+          onPress={handleAddToQueue}
+        >
+          <Text style={[styles.buttonText, { color: isDark ? colors.primary : '#065F46' }]}>+ Queue Post</Text>
         </TouchableOpacity>
 
         {activeQueue.length > 0 ? (
@@ -1098,16 +1142,26 @@ export default function CollectorHomeScreen() {
    * Offers 'Call', 'Chat', and 'Collected' (trigger weight modal) options.
    */
   const renderArrivedPanel = () => (
-    <View style={[styles.arrivedPanel, { bottom: 100 + insets.bottom }]}>
-      <Text style={styles.arrivedTitle}>You have arrived</Text>
-      <Text style={styles.arrivedSub}>at your Recycle-Go location</Text>
+    <View style={[
+      styles.arrivedPanel,
+      {
+        bottom: 100 + insets.bottom,
+        backgroundColor: isDark ? 'rgba(30, 32, 30, 0.98)' : 'rgba(255, 255, 255, 0.98)',
+        borderColor: colors.border,
+        borderWidth: 1
+      }
+    ]}>
+      <Text style={[styles.arrivedTitle, { color: colors.text }]}>You have arrived</Text>
+      <Text style={[styles.arrivedSub, { color: colors.textSecondary }]}>at your Recycle-Go location</Text>
       <View style={{ flexDirection: 'row', gap: 10, width: '100%', marginTop: 5 }}>
-        <TouchableOpacity style={styles.contactButton} onPress={() => {
+        <TouchableOpacity style={[styles.contactButton, { backgroundColor: isDark ? '#2C2C2C' : '#F1F5F9' }]} onPress={() => {
           if (activeJob?.phoneNumber) Linking.openURL(`tel:${activeJob.phoneNumber}`);
           else Alert.alert("No Phone", "Contributor hasn't provided a number");
-        }}><Ionicons name="call" size={20} color={colors.primary} /></TouchableOpacity>
-        <TouchableOpacity style={styles.contactButton} onPress={() => setIsChatOpen(true)}><Ionicons name="chatbubble" size={20} color={colors.primary} /></TouchableOpacity>
-        <TouchableOpacity style={styles.collectedButton} onPress={handleCollected}><Text style={styles.buttonText}>Collected</Text></TouchableOpacity>
+        }}><Ionicons name="call" size={20} color={colors.text} /></TouchableOpacity>
+        <TouchableOpacity style={[styles.contactButton, { backgroundColor: isDark ? '#2C2C2C' : '#F1F5F9' }]} onPress={() => setIsChatOpen(true)}><Ionicons name="chatbubble" size={20} color={colors.text} /></TouchableOpacity>
+        <TouchableOpacity style={[styles.collectedButton, { backgroundColor: colors.primary }]} onPress={handleCollected}>
+          <Text style={styles.buttonText}>Collected</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -1159,7 +1213,7 @@ export default function CollectorHomeScreen() {
   );
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
       <MapView
         ref={mapRef}
         style={styles.map}
@@ -1291,11 +1345,26 @@ export default function CollectorHomeScreen() {
       {appState === 'arrived' && renderArrivedPanel()}
       {appState === 'completed' && renderCompletedScreen()}
       {appState === 'idle' && (
-        <View style={[styles.bottomNav, { bottom: 20 + insets.bottom }]}>
-          <TouchableOpacity><Ionicons name="home" size={24} color="#38761D" /></TouchableOpacity>
-          <TouchableOpacity onPress={() => router.push("/(tabs)/earnings")}><Ionicons name="wallet-outline" size={24} color="#666" /></TouchableOpacity>
-          <TouchableOpacity onPress={() => router.push("/(tabs)/inbox")}><Ionicons name="chatbubble-outline" size={24} color="#666" /></TouchableOpacity>
-          <TouchableOpacity onPress={() => router.push("/(tabs)/account")}><Ionicons name="person-outline" size={24} color="#666" /></TouchableOpacity>
+        <View style={[
+          styles.bottomNav,
+          {
+            bottom: insets.bottom + 10,
+            backgroundColor: isDark ? 'rgba(30, 32, 30, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+            borderColor: colors.border
+          }
+        ]}>
+          <TouchableOpacity style={styles.navItem}>
+            <Ionicons name="home" size={24} color={colors.primary} />
+            <Text style={[styles.navLabel, { color: colors.primary }]}>{t('tabs.home')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.navItem} onPress={() => router.push("/(tabs)/earnings")}>
+            <Ionicons name="wallet-outline" size={24} color={colors.textSecondary} />
+            <Text style={[styles.navLabel, { color: colors.textSecondary }]}>{t('tabs.earnings')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.navItem} onPress={() => router.push("/(tabs)/account")}>
+            <Ionicons name="person-outline" size={24} color={colors.textSecondary} />
+            <Text style={[styles.navLabel, { color: colors.textSecondary }]}>{t('tabs.account')}</Text>
+          </TouchableOpacity>
         </View>
       )}
     </SafeAreaView>
@@ -1452,7 +1521,25 @@ const styles = StyleSheet.create({
   sendBtn: { justifyContent: 'center', alignItems: 'center', paddingHorizontal: 10 },
 
   // --- GENERAL ---
-  bottomNav: { position: 'absolute', left: 20, right: 20, bottom: 30, backgroundColor: '#fff', flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingVertical: 15, borderRadius: 30, shadowOpacity: 0.1, elevation: 5 },
+  bottomNav: {
+    position: 'absolute',
+    left: 24,
+    right: 24,
+    bottom: 10,
+    height: 68,
+    borderRadius: 34,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingVertical: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 10,
+    borderWidth: 1,
+  },
+  navItem: { alignItems: 'center', justifyContent: 'center', flex: 1 },
+  navLabel: { fontSize: 10, fontWeight: '700', marginTop: 2 },
   centerContent: { justifyContent: 'center', alignItems: 'center' },
   truckIconContainer: { width: 80, height: 80, backgroundColor: 'rgba(56, 118, 29, 0.3)', borderRadius: 40, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
   distanceBadge: { position: 'absolute', top: 10, right: 10, backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },

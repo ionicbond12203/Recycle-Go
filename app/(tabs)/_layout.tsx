@@ -16,7 +16,7 @@
 import { FontAwesome, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 
@@ -35,54 +35,47 @@ import { useTheme } from '../../contexts/ThemeContext';
  * - Prevents hardcoded color values that would break theme consistency
  */
 export default function TabLayout() {
-  // Extract theme colors for dynamic styling based on current theme (light/dark)
-  const { colors } = useTheme();
-
-  // Translation function for internationalized tab labels (EN/ZH/MS support)
+  const { colors, isDark } = useTheme();
   const { t } = useLanguage();
+  const insets = useSafeAreaInsets();
 
   return (
-    /**
-     * SafeAreaView ensures content respects device safe areas.
-     * Background color matches theme to prevent white flash on dark mode.
-     * Only 'bottom' edge is used—top insets are handled by individual screen headers.
-     */
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['bottom']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={[]}>
       <Tabs
         screenOptions={{
-          // Headers are managed by individual screens for more granular control
           headerShown: false,
-
-          // Tab bar color states - uses semantic theme colors for consistency
           tabBarActiveTintColor: colors.primary,
           tabBarInactiveTintColor: colors.textSecondary,
-
           tabBarShowLabel: true,
 
           /**
-           * Tab bar container styling.
-           * Height of 60px provides comfortable touch targets for icons + labels.
-           * Elevation: 0 removes Android shadow for a flatter, modern appearance.
+           * Premium Floating Tab Bar Styling
+           * Matches the Contributor's aesthetic with absolute positioning,
+           * translucency, and a rounded pill container.
            */
           tabBarStyle: {
-            paddingBottom: 5,
-            paddingTop: 5,
-            height: 60,
-            backgroundColor: colors.card,
-            borderTopWidth: 1,
-            borderTopColor: colors.border,
-            elevation: 0, // Removes Android shadow for cleaner look
+            position: 'absolute',
+            bottom: insets.bottom + 10,
+            left: 24,
+            right: 24,
+            height: 68,
+            borderRadius: 34,
+            backgroundColor: isDark ? 'rgba(30, 32, 30, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+            borderTopWidth: 0,
+            borderWidth: 1,
+            borderColor: colors.border,
+            shadowColor: "#000",
+            shadowOpacity: 0.1,
+            shadowRadius: 20,
+            elevation: 10,
+            paddingBottom: 10,
+            paddingTop: 10,
           },
 
-          /**
-           * Tab label typography.
-           * Font size 10 keeps labels compact while remaining legible.
-           * Weight 600 (semi-bold) improves readability at small sizes.
-           */
           tabBarLabelStyle: {
             fontSize: 10,
-            fontWeight: '600',
-            marginBottom: 5,
+            fontWeight: '700',
+            marginBottom: 4,
           }
         }}>
 
