@@ -1,7 +1,7 @@
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../contexts/AuthContext";
@@ -88,21 +88,21 @@ export default function EarningsScreen() {
     return () => { supabase.removeChannel(channel); };
   }, [user]);
 
-  const handleWithdraw = () => {
-    Alert.alert(t('earnings.withdraw'), t('earnings.withdrawFeatureSoon'));
+  const handleStartCollecting = () => {
+    router.navigate('/(tabs)/home');
   };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: currentTheme.background }]} edges={['top']}>
       <View style={[styles.header, { backgroundColor: currentTheme.headerBg, borderBottomColor: isDark ? 'rgba(255,255,255,0.05)' : 'transparent' }]}>
-        <Text style={[styles.headerTitle, { color: currentTheme.textPrimary }]}>{t('earnings.title')}</Text>
+        <Text style={[styles.headerTitle, { color: currentTheme.textPrimary }]}>IMPACT DASHBOARD</Text>
         <TouchableOpacity style={[styles.historyBtn, { backgroundColor: isDark ? '#1E1E1E' : '#F1F5F9' }]}>
-          <MaterialCommunityIcons name="history" size={24} color={isDark ? "rgba(255,255,255,0.8)" : "#64748B"} />
+          <MaterialCommunityIcons name="leaf-circle" size={24} color={currentTheme.accent} />
         </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Gradient Card */}
+        {/* Impact Gradient Card */}
         <LinearGradient
           colors={currentTheme.cardGradient}
           start={{ x: 0, y: 0 }}
@@ -111,27 +111,35 @@ export default function EarningsScreen() {
         >
           <View style={styles.cardContent}>
             <View style={styles.balanceSection}>
-              <Text style={[styles.cardLabel, { color: currentTheme.cardLabel }]}>WALLET BALANCE</Text>
+              <Text style={[styles.cardLabel, { color: currentTheme.cardLabel }]}>LIFETIME ENVIRONMENTAL IMPACT</Text>
               <View style={styles.balanceRow}>
-                <Text style={[styles.currencySymbol, { color: isDark ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.9)' }]}>RM</Text>
-                <Text style={[styles.balanceAmount, { color: currentTheme.cardText }]}>{balance.toFixed(2)}</Text>
+                <Text style={[styles.balanceAmount, { color: currentTheme.cardText }]}>{(balance * 0.45).toFixed(1)}</Text>
+                <Text style={[styles.currencySymbol, { color: isDark ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.9)', fontSize: 24, marginLeft: 8 }]}>KG CO2</Text>
               </View>
+              <Text style={[styles.cardLabel, { color: currentTheme.cardLabel, marginTop: 4 }]}>SAVED FROM ATMOSPHERE</Text>
             </View>
 
-            <TouchableOpacity
-              style={[styles.withdrawButton, { backgroundColor: currentTheme.withdrawBg }]}
-              onPress={handleWithdraw}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.withdrawText, { color: currentTheme.withdrawText }]}>{t('earnings.withdraw')}</Text>
-              <Ionicons name="arrow-forward" size={18} color={currentTheme.withdrawText} style={{ marginLeft: 4 }} />
-            </TouchableOpacity>
+            <View style={[styles.impactBadgeIcon, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+              <MaterialCommunityIcons name="tree-outline" size={48} color={currentTheme.cardText} />
+            </View>
           </View>
         </LinearGradient>
 
+        {/* Efficiency Stats Row */}
+        <View style={styles.statsRow}>
+          <View style={[styles.statBox, { backgroundColor: currentTheme.cardBg, borderColor: currentTheme.border }]}>
+            <Text style={[styles.statValue, { color: currentTheme.accent }]}>{balance.toFixed(1)}kg</Text>
+            <Text style={[styles.statLabel, { color: currentTheme.textSecondary }]}>Total Recycled</Text>
+          </View>
+          <View style={[styles.statBox, { backgroundColor: currentTheme.cardBg, borderColor: currentTheme.border }]}>
+            <Text style={[styles.statValue, { color: currentTheme.accent }]}>98%</Text>
+            <Text style={[styles.statLabel, { color: currentTheme.textSecondary }]}>Green Efficiency</Text>
+          </View>
+        </View>
+
         <View style={styles.activitySection}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: currentTheme.textPrimary }]}>{t('earnings.recentActivity')}</Text>
+            <Text style={[styles.sectionTitle, { color: currentTheme.textPrimary }]}>Collection History</Text>
             <TouchableOpacity>
               <Text style={[styles.viewAllText, { color: currentTheme.accent }]}>View All</Text>
             </TouchableOpacity>
@@ -140,21 +148,20 @@ export default function EarningsScreen() {
           {history.length === 0 ? (
             <View style={styles.emptyStateContainer}>
               <View style={styles.glowContainer}>
-                {/* Only show glow ring in Dark Mode */}
                 {isDark && <View style={[styles.glowRing, { borderColor: 'rgba(74, 222, 128, 0.3)' }]} />}
                 <View style={[styles.iconCircle, { backgroundColor: isDark ? 'rgba(30, 30, 30, 0.5)' : '#F0FDF4' }]}>
                   <MaterialCommunityIcons name="leaf" size={isDark ? 48 : 64} color={currentTheme.accent} />
                 </View>
               </View>
 
-              <Text style={[styles.emptyTitle, { color: currentTheme.textPrimary }]}>{t('earnings.noEarnings')}</Text>
+              <Text style={[styles.emptyTitle, { color: currentTheme.textPrimary }]}>No Collections Yet</Text>
               <Text style={[styles.emptyDesc, { color: currentTheme.textSecondary }]}>
-                Your recycling journey starts here! Complete your first collection to see your earnings grow.
+                Start accepting recycling requests to see your environmental impact grow here.
               </Text>
 
               <TouchableOpacity
                 style={[styles.startCollectingBtn, { backgroundColor: currentTheme.accent }]}
-                onPress={() => router.navigate('/(tabs)/home')}
+                onPress={handleStartCollecting}
                 activeOpacity={0.9}
               >
                 <Text style={[styles.startCollectingText, { color: isDark ? '#000000' : '#FFFFFF' }]}>Start Collecting</Text>
@@ -165,18 +172,18 @@ export default function EarningsScreen() {
               {history.map((item) => (
                 <View key={item.id} style={[styles.historyItem, { backgroundColor: currentTheme.cardBg, borderColor: currentTheme.border }]}>
                   <View style={[styles.iconBox, { backgroundColor: currentTheme.iconBg }]}>
-                    <MaterialCommunityIcons name="cash-multiple" size={24} color={currentTheme.accent} />
+                    <MaterialCommunityIcons name="check-circle-outline" size={24} color={currentTheme.accent} />
                   </View>
                   <View style={styles.itemDetails}>
-                    <Text style={[styles.itemTitle, { color: currentTheme.textPrimary }]}>Collection Commission</Text>
+                    <Text style={[styles.itemTitle, { color: currentTheme.textPrimary }]}>{item.weight_kg}kg Collection</Text>
                     <Text style={[styles.itemSub, { color: currentTheme.textSecondary }]}>
-                      {new Date(item.created_at).toLocaleDateString()} • {item.weight_kg}kg
+                      {new Date(item.created_at).toLocaleDateString()} • {item.contributors?.address || 'Verified Scan'}
                     </Text>
                   </View>
                   <View style={styles.itemAmountWrapper}>
-                    <Text style={[styles.itemAmount, { color: currentTheme.accent }]}>+ RM {(item.commission_amount || 0).toFixed(2)}</Text>
+                    <Text style={[styles.itemAmount, { color: currentTheme.accent }]}>+ {Math.round(item.weight_kg * 10)} pts</Text>
                     <View style={[styles.statusBadge, { backgroundColor: currentTheme.iconBg }]}>
-                      <Text style={[styles.statusText, { color: currentTheme.accent }]}>CONFIRMED</Text>
+                      <Text style={[styles.statusText, { color: currentTheme.accent }]}>VERIFIED</Text>
                     </View>
                   </View>
                 </View>
@@ -255,21 +262,44 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   balanceAmount: {
-    fontSize: 36,
+    fontSize: 48,
     fontWeight: '900',
-    letterSpacing: -1,
+    letterSpacing: -2,
   },
-  withdrawButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 16,
+  impactBadgeIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statsRow: {
     flexDirection: 'row',
+    gap: 16,
+    marginBottom: 32,
+  },
+  statBox: {
+    flex: 1,
+    padding: 20,
+    borderRadius: 24,
+    borderWidth: 1,
     alignItems: 'center',
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  statValue: {
+    fontSize: 22,
+    fontWeight: '900',
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   withdrawText: {
     fontWeight: '800',

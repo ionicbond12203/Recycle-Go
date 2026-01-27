@@ -104,18 +104,18 @@ export default function ManualItemEntryModal({ visible, onClose, onAdd }: Manual
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1 },
-    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20 },
-    title: { fontSize: 20, fontWeight: 'bold' },
-    closeBtn: { padding: 8, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.05)' },
-    content: { padding: 20 },
-    label: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
-    input: { padding: 15, borderRadius: 12, borderWidth: 1, fontSize: 16 },
-    materialGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 10 },
-    materialCard: { width: '47%', padding: 20, borderRadius: 16, alignItems: 'center', gap: 8, borderWidth: 1 },
-    materialName: { fontSize: 14, fontWeight: 'bold' },
-    pointsLabel: { fontSize: 12, color: '#4CAF50', fontWeight: 'bold' },
-    footer: { padding: 20, borderTopWidth: 1 },
-    addButton: { paddingVertical: 18, borderRadius: 15, alignItems: 'center' },
-    addButtonText: { color: '#fff', fontSize: 18, fontWeight: 'bold' }
+    container: { flex: 1, borderTopLeftRadius: 36, borderTopRightRadius: 36 },
+    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingTop: 24, paddingBottom: 12 },
+    title: { fontSize: 24, fontWeight: '900', letterSpacing: -1 },
+    closeBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.05)', justifyContent: 'center', alignItems: 'center' },
+    content: { padding: 24 },
+    label: { fontSize: 13, fontWeight: '900', marginBottom: 10, letterSpacing: 0.5, textTransform: 'uppercase' },
+    input: { padding: 18, borderRadius: 20, borderWidth: 1.5, fontSize: 17, fontWeight: '700' },
+    materialGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginTop: 12 },
+    materialCard: { width: '47.5%', padding: 24, borderRadius: 24, alignItems: 'center', gap: 10, borderWidth: 1.5, shadowOpacity: 0.1, shadowRadius: 10, elevation: 5 },
+    materialName: { fontSize: 15, fontWeight: '900', letterSpacing: -0.5 },
+    pointsLabel: { fontSize: 12, fontWeight: '900' },
+    footer: { padding: 24, borderTopWidth: 1.5 },
+    addButton: { paddingVertical: 20, borderRadius: 24, alignItems: 'center', shadowOpacity: 0.3, shadowRadius: 15, elevation: 12 },
+    addButtonText: { color: '#fff', fontSize: 18, fontWeight: '900', letterSpacing: 1 }
 });

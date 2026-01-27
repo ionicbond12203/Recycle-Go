@@ -51,7 +51,7 @@ export default function CollectorHomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const mapRef = useRef<MapView>(null);
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { t } = useLanguage();
   const { user } = useAuth();
 
@@ -899,61 +899,62 @@ export default function CollectorHomeScreen() {
    * Also allows toggling the Algorithm Mode (Standard vs Green).
    */
   const renderRequestPopup = () => (
-    <View style={[styles.requestCard, { bottom: 100 + insets.bottom }]}>
+    <View style={[styles.requestCard, { bottom: 100 + insets.bottom, backgroundColor: isDark ? 'rgba(30,30,30,0.85)' : 'rgba(255,255,255,0.9)', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
       <View style={styles.requestHeader}>
         <TouchableOpacity onPress={() => setShowDetailModal(true)}>
           <Image source={{ uri: activeJob?.contributorAvatar || "https://i.pravatar.cc/150?u=default" }} style={styles.requestAvatar} />
         </TouchableOpacity>
-        <View style={{ marginLeft: 10, flex: 1 }}>
-          <Text style={styles.requestAddress}>{activeJob?.address}</Text>
-          <Text style={styles.requestDistance}>
+        <View style={{ marginLeft: 15, flex: 1 }}>
+          <Text style={[styles.requestAddress, { color: colors.text }]}>{activeJob?.address}</Text>
+          <Text style={[styles.requestDistance, { color: colors.textSecondary }]}>
             {routeInfo ?
               `${(routeInfo.distance).toFixed(2)} km • ${(routeInfo.duration).toFixed(0)} min` :
-              `${activeJob?.distanceLabel} • Estimating route...`
+              `${activeJob?.distanceLabel} • Estimating...`
             }
           </Text>
         </View>
+        <View style={[styles.queueBadge, { backgroundColor: colors.primary + '20' }]}>
+          <Text style={[styles.queueText, { color: colors.primary }]}>{activeQueue.length + 1}th Stop</Text>
+        </View>
       </View>
 
-      {/* Algorithm Toggle */}
-      <View style={{ flexDirection: 'row', backgroundColor: '#eee', borderRadius: 8, padding: 4, marginHorizontal: 20, marginBottom: 15 }}>
+      {/* Algorithm Toggle - Modern Pill */}
+      <View style={[styles.algoTogglePill, { backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : '#F1F5F9' }]}>
         <TouchableOpacity
           onPress={() => {
             setAlgorithmMode('standard');
             if (activeQueue.length > 1) reoptimizeRoute('standard');
           }}
-          style={{ flex: 1, padding: 8, borderRadius: 6, backgroundColor: algorithmMode === 'standard' ? '#fff' : 'transparent', alignItems: 'center', shadowOpacity: algorithmMode === 'standard' ? 0.1 : 0 }}>
-          <Text style={{ fontWeight: algorithmMode === 'standard' ? 'bold' : 'normal', color: algorithmMode === 'standard' ? '#007AFF' : '#666' }}>Standard</Text>
+          style={[styles.algoOption, algorithmMode === 'standard' && { backgroundColor: '#FFF', shadowOpacity: 0.1, elevation: 2 }]}>
+          <Text style={[styles.algoText, { color: algorithmMode === 'standard' ? colors.primaryDark : colors.textTertiary }]}>Standard</Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => {
             setAlgorithmMode('green');
             if (activeQueue.length > 1) reoptimizeRoute('green');
           }}
-          style={{ flex: 1, padding: 8, borderRadius: 6, backgroundColor: algorithmMode === 'green' ? '#E8F5E9' : 'transparent', alignItems: 'center', shadowOpacity: algorithmMode === 'green' ? 0.1 : 0 }}>
-          <Text style={{ fontWeight: algorithmMode === 'green' ? 'bold' : 'normal', color: algorithmMode === 'green' ? '#38761D' : '#666' }}>🌱 Green (Eco)</Text>
+          style={[styles.algoOption, algorithmMode === 'green' && { backgroundColor: colors.primary, shadowOpacity: 0.2, elevation: 4 }]}>
+          <Text style={[styles.algoText, { color: algorithmMode === 'green' ? '#FFF' : colors.textTertiary, fontWeight: '800' }]}>🌱 Green (Eco)</Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.requestButtons}>
-        {/* New Multi-Stop Controls */}
-        <TouchableOpacity style={[styles.acceptButton, { backgroundColor: colors.secondary, marginRight: 10 }]} onPress={handleAddToQueue}>
-          <Text style={styles.buttonText}>+ Add to Route ({activeQueue.length})</Text>
+        <TouchableOpacity style={[styles.acceptButton, { backgroundColor: colors.secondary + '20', borderWidth: 1, borderColor: colors.secondary }]} onPress={handleAddToQueue}>
+          <Text style={[styles.buttonText, { color: colors.secondary }]}>+ Queue Post</Text>
         </TouchableOpacity>
 
         {activeQueue.length > 0 ? (
-          <TouchableOpacity style={styles.acceptButton} onPress={handleStartRoute}>
-            <Text style={styles.buttonText}>Start Route ▶</Text>
+          <TouchableOpacity style={[styles.acceptButton, { backgroundColor: colors.primary }]} onPress={handleStartRoute}>
+            <Text style={styles.buttonText}>Navigate All ({activeQueue.length + 1})</Text>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity style={styles.acceptButton} onPress={() => handleAcceptJob(activeJob!)}>
+          <TouchableOpacity style={[styles.acceptButton, { backgroundColor: colors.primary }]} onPress={() => handleAcceptJob(activeJob!)}>
             <Text style={styles.buttonText}>{t('actions.accept')}</Text>
           </TouchableOpacity>
         )}
-
       </View>
-      <TouchableOpacity onPress={handleDeclineJob} style={{ alignSelf: 'center', marginTop: 10 }}>
-        <Text style={{ color: 'red' }}>{t('common.cancel')}</Text>
+      <TouchableOpacity onPress={handleDeclineJob} style={{ alignSelf: 'center', marginTop: 15 }}>
+        <Text style={{ color: colors.error, fontWeight: '700', fontSize: 13 }}>{t('common.cancel').toUpperCase()}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -963,62 +964,62 @@ export default function CollectorHomeScreen() {
    * Displays job details, buttons to Call/Chat, and 'Start Ride' button.
    */
   const renderNavigationPanel = () => (
-    <View style={[styles.navPanel, { paddingBottom: insets.bottom + 10 }]}>
+    <View style={[styles.navPanel, { paddingBottom: insets.bottom + 10, backgroundColor: isDark ? 'rgba(30,30,30,0.95)' : '#FFF' }]}>
       <View style={styles.dragHandle} />
       <View style={styles.navHeader}>
         <Image source={{ uri: activeJob?.contributorAvatar || "https://i.pravatar.cc/150?u=default" }} style={styles.navAvatar} />
         <View style={{ flex: 1, marginHorizontal: 12, justifyContent: 'center' }}>
-          <Text style={styles.navName} numberOfLines={2} ellipsizeMode='tail'>{activeJob?.address || "Unknown Location"}</Text>
-          <Text style={styles.navSub}>ID: {activeJob?.id.substring(0, 8)}</Text>
+          <Text style={[styles.navName, { color: colors.text }]} numberOfLines={2} ellipsizeMode='tail'>{activeJob?.address || "Unknown Location"}</Text>
+          <Text style={[styles.navSub, { color: colors.textSecondary }]}>STOP {activeQueue.indexOf(activeJob!) + 1} OF {activeQueue.length}</Text>
         </View>
         <View style={styles.statsContainer}>
-          <Text style={styles.navTime}>
+          <Text style={[styles.navTime, { color: colors.primary }]}>
             {routeMetrics ? Math.ceil(routeMetrics.duration / 60) : (routeInfo ? Math.ceil(routeInfo.duration) : 0)} min
           </Text>
-          <Text style={styles.navDist}>
+          <Text style={[styles.navDist, { color: colors.textSecondary }]}>
             {routeMetrics ? (routeMetrics.distance / 1000).toFixed(2) : (routeInfo ? (routeInfo.distance).toFixed(2) : "0.00")} km
           </Text>
         </View>
       </View>
 
       {algorithmMode === 'green' && (
-        <View style={{ backgroundColor: '#E8F5E9', padding: 8, marginHorizontal: 20, borderRadius: 8, marginBottom: 10 }}>
-          <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#38761D' }}>
-            🌱 Green Mode Active: Energy-Aware Routing
+        <View style={[styles.impactHighlight, { backgroundColor: colors.primary + '15' }]}>
+          <MaterialCommunityIcons name="leaf" size={16} color={colors.primary} />
+          <Text style={[styles.impactHighlightText, { color: colors.primary }]}>
+            Green Mode: Optimizing for zero emission
           </Text>
         </View>
       )}
 
       {routeMetrics && (
-        <View style={{ backgroundColor: colors.border, padding: 12, marginHorizontal: 20, borderRadius: 10, marginBottom: 15 }}>
-          <Text style={{ fontSize: 13, fontWeight: 'bold', color: colors.text, marginBottom: 5 }}>📊 Optimization Stats (Real-Road)</Text>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <View>
-              <Text style={{ fontSize: 11, color: colors.textSecondary }}>Distance</Text>
-              <Text style={{ fontWeight: 'bold', color: colors.text }}>{(routeMetrics.distance / 1000).toFixed(2)} km</Text>
+        <View style={[styles.optimizationStats, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#F8FAFC', borderColor: colors.border }]}>
+          <Text style={[styles.optTitle, { color: colors.text }]}>REAL-TIME ROUTE OPTIMIZATION</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
+            <View style={styles.optItem}>
+              <Text style={styles.optLabel}>TOTAL DISTANCE</Text>
+              <Text style={[styles.optValue, { color: colors.text }]}>{(routeMetrics.distance / 1000).toFixed(2)} km</Text>
             </View>
-            <View>
-              <Text style={{ fontSize: 11, color: colors.textSecondary }}>Elev. Gain</Text>
-              <Text style={{ fontWeight: 'bold', color: colors.text }}>{routeMetrics.elevationGain.toFixed(1)} m</Text>
+            <View style={styles.optItem}>
+              <Text style={styles.optLabel}>ELEVATION GAIN</Text>
+              <Text style={[styles.optValue, { color: colors.text }]}>{routeMetrics.elevationGain.toFixed(0)} m</Text>
             </View>
-            <View>
-              <Text style={{ fontSize: 11, color: colors.textSecondary }}>Energy Score</Text>
-              <Text style={{ fontWeight: 'bold', color: colors.primary }}>{Math.round(routeMetrics.energyScore)}</Text>
+            <View style={styles.optItem}>
+              <Text style={styles.optLabel}>ENERGY SAVED</Text>
+              <Text style={[styles.optValue, { color: colors.primary }]}>{(100 - (routeMetrics.energyScore / routeMetrics.distance * 1000)).toFixed(0)}%</Text>
             </View>
           </View>
         </View>
       )}
 
-
-      <View style={{ flexDirection: 'row', gap: 10 }}>
-        <TouchableOpacity style={styles.contactButton} onPress={() => {
+      <View style={{ flexDirection: 'row', gap: 12, marginTop: 5 }}>
+        <TouchableOpacity style={[styles.contactButton, { backgroundColor: isDark ? '#2C2C2C' : '#F1F5F9' }]} onPress={() => {
           if (activeJob?.phoneNumber) Linking.openURL(`tel:${activeJob.phoneNumber}`);
           else Alert.alert("No Phone", "Contributor hasn't provided a number");
-        }}><Ionicons name="call" size={20} color={colors.primary} /></TouchableOpacity>
-        <TouchableOpacity style={styles.contactButton} onPress={() => setIsChatOpen(true)}><Ionicons name="chatbubble" size={20} color={colors.primary} /></TouchableOpacity>
-        <TouchableOpacity style={styles.startRideButton} onPress={handleStartRide}>
-          <FontAwesome name="location-arrow" size={18} color="#fff" style={{ marginRight: 8 }} />
-          <Text style={styles.buttonText}>{t('collector.startNav')}</Text>
+        }}><Ionicons name="call" size={20} color={colors.text} /></TouchableOpacity>
+        <TouchableOpacity style={[styles.contactButton, { backgroundColor: isDark ? '#2C2C2C' : '#F1F5F9' }]} onPress={() => setIsChatOpen(true)}><Ionicons name="chatbubble" size={20} color={colors.text} /></TouchableOpacity>
+        <TouchableOpacity style={[styles.startRideButton, { backgroundColor: colors.primary }]} onPress={handleStartRide}>
+          <FontAwesome name="location-arrow" size={18} color="#fff" style={{ marginRight: 10 }} />
+          <Text style={styles.buttonText}>START NAVIGATION</Text>
         </TouchableOpacity>
       </View>
     </View >
@@ -1137,16 +1138,21 @@ export default function CollectorHomeScreen() {
    */
   const renderCompletedScreen = () => (
     <Modal visible={true} animationType="slide" transparent={false}>
-      <SafeAreaView style={styles.completedContainer}>
-        <View style={styles.completedHeader}><Text style={styles.completedBrand}>♻️ Recycle-Go</Text></View>
-        <View style={styles.rewardCard}>
-          <View style={styles.coinIcon}><Text style={{ fontSize: 40 }}>💰</Text></View>
-          <Text style={styles.rewardTitle}>Great Move!</Text>
-          <Text style={styles.rewardAmount}>+RM 5</Text>
-          <TouchableOpacity style={styles.doneButton} onPress={() => setAppState('idle')}><Text style={styles.doneButtonText}>Done</Text></TouchableOpacity>
+      <SafeAreaView style={[styles.completedContainer, { backgroundColor: colors.primary }]}>
+        <View style={styles.completedHeader}>
+          <MaterialCommunityIcons name="check-decagram" size={80} color="#FFF" />
+          <Text style={styles.completedBrand}>RECYCLE-GO IMPACT</Text>
         </View>
-        <View style={[styles.completedFooter, { bottom: 50 + insets.bottom }]}>
-          <TouchableOpacity style={styles.finishButton} onPress={handleFinishJob}><Text style={styles.buttonText}>I'm done for the day!</Text></TouchableOpacity>
+        <View style={[styles.rewardCard, { backgroundColor: isDark ? '#1E1E1E' : '#FFF' }]}>
+          <View style={styles.coinIcon}>
+            <MaterialCommunityIcons name="tree" size={60} color={colors.primary} />
+          </View>
+          <Text style={[styles.rewardTitle, { color: colors.text }]}>Mission Accomplished!</Text>
+          <Text style={[styles.rewardAmount, { color: colors.primary }]}>+50 ECO-PTS</Text>
+          <Text style={{ color: colors.textSecondary, textAlign: 'center', marginBottom: 20 }}>
+            You saved ~2.5 kg of CO2 in this trip.
+          </Text>
+          <TouchableOpacity style={[styles.doneButton, { backgroundColor: colors.primary }]} onPress={() => setAppState('idle')}><Text style={styles.doneButtonText}>Back to Dashboard</Text></TouchableOpacity>
         </View>
       </SafeAreaView>
     </Modal>
@@ -1320,95 +1326,106 @@ const styles = StyleSheet.create({
   chip: { backgroundColor: '#fff', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, fontSize: 12, overflow: 'hidden', color: '#444' },
   jobDistance: { fontSize: 14, fontWeight: 'bold', color: '#555' },
 
-  // --- REQUEST POPUP (PREMIUM) ---
-  requestCard: { position: 'absolute', bottom: 30, left: 15, right: 15, backgroundColor: '#fff', borderRadius: 20, padding: 20, shadowOpacity: 0.2, shadowRadius: 15, elevation: 15 },
+  // --- REQUEST POPUP ---
+  requestCard: { position: 'absolute', left: 15, right: 15, borderRadius: 32, padding: 24, shadowOpacity: 0.3, shadowRadius: 20, elevation: 15, borderWidth: 1 },
   requestHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
-  requestAvatar: { width: 50, height: 50, borderRadius: 25, marginRight: 15 },
-  requestAddress: { fontSize: 16, fontWeight: 'bold', color: '#333', flex: 1 },
-  requestDistance: { fontSize: 14, color: '#666', marginTop: 4 },
-  requestButtons: { flexDirection: 'row', gap: 10 },
-  acceptButton: { flex: 1, backgroundColor: '#38761D', paddingVertical: 14, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  declineButton: { flex: 1, backgroundColor: '#FF5252', paddingVertical: 14, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  requestAvatar: { width: 56, height: 56, borderRadius: 28, borderWidth: 2, borderColor: '#FFF' },
+  requestAddress: { fontSize: 18, fontWeight: '900', letterSpacing: -0.5 },
+  requestDistance: { fontSize: 13, fontWeight: '600', marginTop: 2 },
+  queueBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  queueText: { fontSize: 11, fontWeight: '900' },
 
-  // --- NAVIGATION PANEL (PREMIUM) ---
-  navPanel: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#fff', padding: 25, borderTopLeftRadius: 25, borderTopRightRadius: 25, shadowOpacity: 0.2, elevation: 20 },
-  dragHandle: { width: 40, height: 4, backgroundColor: '#E0E0E0', borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
-  navHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 25 },
-  navAvatar: { width: 50, height: 50, borderRadius: 25, marginRight: 15 },
-  navName: { fontSize: 18, fontWeight: 'bold', color: '#333', flex: 1 },
-  navSub: { fontSize: 14, color: '#666', marginTop: 2 },
+  algoTogglePill: { flexDirection: 'row', borderRadius: 16, padding: 4, marginBottom: 20 },
+  algoOption: { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
+  algoText: { fontSize: 14, fontWeight: '700' },
+
+  requestButtons: { flexDirection: 'row', gap: 12 },
+  acceptButton: { flex: 1, paddingVertical: 18, borderRadius: 20, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10, elevation: 5 },
+  buttonText: { color: '#fff', fontSize: 15, fontWeight: '900', letterSpacing: 0.5 },
+
+  // --- NAVIGATION PANEL ---
+  navPanel: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 24, paddingTop: 10, borderTopLeftRadius: 36, borderTopRightRadius: 36, shadowOpacity: 0.2, shadowRadius: 20, elevation: 25 },
+  dragHandle: { width: 36, height: 4, backgroundColor: '#E2E8F0', borderRadius: 2, alignSelf: 'center', marginBottom: 15 },
+  navHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+  navAvatar: { width: 50, height: 50, borderRadius: 25 },
+  navName: { fontSize: 17, fontWeight: '800', letterSpacing: -0.5 },
+  navSub: { fontSize: 11, fontWeight: '900', letterSpacing: 1, marginTop: 4 },
   statsContainer: { alignItems: 'flex-end' },
-  navTime: { fontSize: 18, fontWeight: 'bold', color: '#38761D' },
-  navDist: { fontSize: 14, color: '#666' },
+  navTime: { fontSize: 20, fontWeight: '900' },
+  navDist: { fontSize: 13, fontWeight: '700' },
 
-  // Navigation Actions
-  contactButton: { width: 50, height: 50, borderRadius: 12, backgroundColor: '#F5F5F5', justifyContent: 'center', alignItems: 'center' },
-  startRideButton: { flex: 1, backgroundColor: '#38761D', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 15, borderRadius: 12 },
+  impactHighlight: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 16, marginBottom: 20 },
+  impactHighlightText: { fontSize: 13, fontWeight: '800' },
 
-  // --- DRIVING MODE (PREMIUM) ---
-  topNavContainer: { position: 'absolute', top: 50, left: 15, right: 15, zIndex: 10 },
-  greenBanner: { backgroundColor: '#38761D', borderRadius: 12, padding: 15, shadowOpacity: 0.3, elevation: 8 },
-  bannerMainContent: { flexDirection: 'row', alignItems: 'flex-start' },
-  instructionMain: { flex: 1, color: '#fff', fontSize: 22, fontWeight: 'bold', marginLeft: 10, marginRight: 10 },
-  instructionSub: { color: 'rgba(255,255,255,0.8)', fontSize: 15, marginTop: 4 },
-  micButton: { width: 40, height: 40, backgroundColor: '#fff', borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
-  thenBanner: { marginTop: -5, backgroundColor: '#2E7D32', paddingTop: 15, paddingBottom: 8, paddingHorizontal: 15, borderBottomLeftRadius: 12, borderBottomRightRadius: 12, zIndex: -1 },
-  thenText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  optimizationStats: { padding: 16, borderRadius: 20, marginBottom: 24, borderWidth: 1 },
+  optTitle: { fontSize: 11, fontWeight: '900', letterSpacing: 1, marginBottom: 12 },
+  optItem: { alignItems: 'flex-start' },
+  optLabel: { fontSize: 10, fontWeight: '900', color: '#64748B', letterSpacing: 0.5 },
+  optValue: { fontSize: 17, fontWeight: '900', marginTop: 2 },
 
-  floatingRightButtons: { position: 'absolute', right: 15, bottom: 250, gap: 15 },
-  floatingCircleBtn: { width: 45, height: 45, backgroundColor: '#fff', borderRadius: 25, justifyContent: 'center', alignItems: 'center', shadowOpacity: 0.2, elevation: 5 },
+  contactButton: { width: 56, height: 56, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
+  startRideButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 20, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10, elevation: 8 },
 
-  recenterButtonPos: { position: 'absolute', left: 20, bottom: 200 },
-  recenterButton: { flexDirection: 'row', backgroundColor: '#fff', paddingVertical: 10, paddingHorizontal: 15, borderRadius: 20, alignItems: 'center', shadowOpacity: 0.2, elevation: 5 },
-  recenterText: { marginLeft: 5, fontWeight: '600', color: '#333' },
+  // --- INTERNAL NAV OVERLAY ---
+  topNavContainer: { position: 'absolute', top: 50, left: 20, right: 20, zIndex: 10 },
+  greenBanner: { backgroundColor: '#10B981', borderRadius: 24, padding: 20, shadowOpacity: 0.3, shadowRadius: 20, elevation: 12 },
+  bannerMainContent: { flexDirection: 'row', alignItems: 'center' },
+  instructionMain: { flex: 1, color: '#fff', fontSize: 24, fontWeight: '900', letterSpacing: -0.5 },
+  instructionSub: { color: 'rgba(255,255,255,0.85)', fontSize: 15, fontWeight: '600', marginTop: 4 },
+  micButton: { width: 44, height: 44, backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
+  thenBanner: { marginTop: -10, backgroundColor: '#065F46', paddingTop: 20, paddingBottom: 10, paddingHorizontal: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, zIndex: -1 },
+  thenText: { color: '#fff', fontSize: 14, fontWeight: '700' },
 
-  bottomSheetNav: { position: 'absolute', bottom: 15, left: 15, right: 15, backgroundColor: '#fff', borderRadius: 16, padding: 15, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', shadowOpacity: 0.15, elevation: 10 },
+  floatingRightButtons: { position: 'absolute', right: 20, gap: 16 },
+  floatingCircleBtn: { width: 52, height: 52, backgroundColor: '#fff', borderRadius: 26, justifyContent: 'center', alignItems: 'center', shadowOpacity: 0.2, shadowRadius: 10, elevation: 8 },
+
+  recenterButtonPos: { position: 'absolute', left: 20 },
+  recenterButton: { flexDirection: 'row', backgroundColor: '#fff', paddingVertical: 12, paddingHorizontal: 18, borderRadius: 25, alignItems: 'center', shadowOpacity: 0.2, elevation: 8 },
+  recenterText: { marginLeft: 8, fontWeight: '800', fontSize: 13, color: '#333' },
+
+  bottomSheetNav: { position: 'absolute', bottom: 20, left: 20, right: 20, backgroundColor: '#fff', borderRadius: 28, padding: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', shadowOpacity: 0.2, shadowRadius: 20, elevation: 15 },
   bottomSheetContent: { flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  altRouteButton: { padding: 5 },
+  altRouteButton: { padding: 8 },
   bottomStats: { alignItems: 'center' },
-  bottomTimeBig: { fontSize: 24, fontWeight: 'bold', color: '#38761D' },
-  bottomTimeSmall: { fontSize: 14, color: '#666' },
-  exitButton: { width: 40, height: 40, backgroundColor: '#F5F5F5', borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
+  bottomTimeBig: { fontSize: 28, fontWeight: '900', color: '#10B981', letterSpacing: -1 },
+  bottomTimeSmall: { fontSize: 14, fontWeight: '700', color: '#64748B' },
+  exitButton: { width: 52, height: 52, backgroundColor: '#F1F5F9', borderRadius: 26, justifyContent: 'center', alignItems: 'center' },
 
-  // --- TRIP IN PROGRESS (External Map) ---
-  tripPanel: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#fff', padding: 25, borderTopLeftRadius: 25, borderTopRightRadius: 25, shadowOpacity: 0.2, elevation: 20 },
-  tripHeader: { alignItems: 'center', marginBottom: 20 },
-  pulsingDotContainer: { width: 60, height: 60, backgroundColor: '#E8F5E9', borderRadius: 30, justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
-  pulsingDot: { width: 20, height: 20, backgroundColor: '#38761D', borderRadius: 10 },
-  tripStatusText: { fontSize: 20, fontWeight: 'bold', color: '#333' },
-  tripSubText: { color: '#666', marginTop: 5 },
-  reopenMapsButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#E3F2FD', padding: 10, borderRadius: 20, marginTop: 15 },
-  reopenMapsText: { color: '#1A73E8', fontWeight: '600', marginLeft: 8 },
+  // --- TRIP PANELS ---
+  tripPanel: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#fff', padding: 30, borderTopLeftRadius: 40, borderTopRightRadius: 40, shadowOpacity: 0.2, elevation: 25 },
+  tripHeader: { alignItems: 'center', marginBottom: 25 },
+  pulsingDotContainer: { width: 72, height: 72, backgroundColor: '#ECFDF5', borderRadius: 36, justifyContent: 'center', alignItems: 'center', marginBottom: 15 },
+  pulsingDot: { width: 24, height: 24, backgroundColor: '#10B981', borderRadius: 12 },
+  tripStatusText: { fontSize: 22, fontWeight: '900', color: '#0F172A', letterSpacing: -0.5 },
+  tripSubText: { color: '#64748B', textAlign: 'center', fontSize: 15, lineHeight: 22 },
+  reopenMapsButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF6FF', paddingVertical: 12, paddingHorizontal: 20, borderRadius: 25, marginTop: 20 },
+  reopenMapsText: { color: '#2563EB', fontWeight: '800', marginLeft: 10 },
 
-  // --- SEARCHING PANEL ---
-  searchingPanel: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#fff', padding: 25, borderTopLeftRadius: 30, borderTopRightRadius: 30, shadowOpacity: 0.1, elevation: 15 },
+  searchingPanel: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#fff', padding: 32, borderTopLeftRadius: 40, borderTopRightRadius: 40, shadowOpacity: 0.1, elevation: 20 },
   searchingRow: { flexDirection: 'row', alignItems: 'center' },
-  searchingTitle: { fontSize: 24, fontWeight: 'bold', color: '#000' },
-  searchingSub: { fontSize: 16, color: '#666', marginTop: 4 },
-  estimatedBadge: { backgroundColor: '#F5F5F5', paddingHorizontal: 15, paddingVertical: 10, borderRadius: 12, alignItems: 'center' },
-  estimatedLabel: { fontSize: 10, color: '#999', fontWeight: 'bold', letterSpacing: 0.5 },
-  estimatedTime: { fontSize: 16, fontWeight: 'bold', color: '#000' },
+  searchingTitle: { fontSize: 26, fontWeight: '900', color: '#0F172A', letterSpacing: -0.5 },
+  searchingSub: { fontSize: 16, color: '#64748B', marginTop: 4, fontWeight: '600' },
+  estimatedBadge: { backgroundColor: '#F8FAFC', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 16, alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0' },
+  estimatedLabel: { fontSize: 10, color: '#94A3B8', fontWeight: '900', letterSpacing: 1 },
+  estimatedTime: { fontSize: 18, fontWeight: '900', color: '#0F172A', marginTop: 2 },
 
-  // --- ARRIVED PANEL ---
-  arrivedPanel: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#fff', padding: 30, borderTopLeftRadius: 30, borderTopRightRadius: 30, alignItems: 'center', shadowOpacity: 0.2, elevation: 20 },
-  arrivedTitle: { fontSize: 24, fontWeight: 'bold', marginBottom: 5, color: '#333' },
-  arrivedSub: { fontSize: 16, color: '#666', marginBottom: 25, textAlign: 'center' },
-  arrivedButtonLarge: { width: '100%', backgroundColor: '#38761D', paddingVertical: 16, borderRadius: 30, alignItems: 'center' },
-  collectedButton: { flex: 1, backgroundColor: '#38761D', paddingVertical: 16, borderRadius: 12, alignItems: 'center' },
+  arrivedPanel: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#fff', padding: 32, borderTopLeftRadius: 40, borderTopRightRadius: 40, alignItems: 'center', shadowOpacity: 0.2, elevation: 25 },
+  arrivedTitle: { fontSize: 28, fontWeight: '900', marginBottom: 8, color: '#0F172A', letterSpacing: -1 },
+  arrivedSub: { fontSize: 16, color: '#64748B', marginBottom: 30, textAlign: 'center', fontWeight: '500' },
+  arrivedButtonLarge: { width: '100%', paddingVertical: 18, borderRadius: 24, alignItems: 'center', shadowColor: '#10B981', shadowOpacity: 0.3, shadowRadius: 15, elevation: 10 },
+  collectedButton: { flex: 1, paddingVertical: 18, borderRadius: 20, alignItems: 'center', shadowColor: '#10B981', shadowOpacity: 0.2, shadowRadius: 10, elevation: 8 },
 
-  // --- COMPLETED MODAL ---
-  completedContainer: { flex: 1, backgroundColor: '#38761D', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  completedHeader: { alignItems: 'center', marginBottom: 40 },
-  completedBrand: { color: 'rgba(255,255,255,0.7)', fontSize: 14, letterSpacing: 2, marginTop: 10 },
-  rewardCard: { backgroundColor: '#fff', borderRadius: 30, padding: 30, width: '100%', alignItems: 'center', shadowOpacity: 0.3, elevation: 10 },
-  coinIcon: { width: 80, height: 80, marginBottom: 20 },
-  rewardTitle: { fontSize: 24, fontWeight: 'bold', marginBottom: 10, color: '#333' },
-  rewardAmount: { fontSize: 48, fontWeight: '800', color: '#38761D', marginBottom: 30 },
-  completedFooter: { width: '100%', marginTop: 20 },
-  finishButton: { backgroundColor: 'rgba(255,255,255,0.2)', paddingVertical: 18, borderRadius: 18, alignItems: 'center', width: '100%' },
-  doneButton: { backgroundColor: '#38761D', paddingVertical: 15, paddingHorizontal: 40, borderRadius: 25, marginTop: 20 },
-  doneButtonText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
+  completedContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  completedHeader: { alignItems: 'center', marginBottom: 48 },
+  completedBrand: { color: 'rgba(255,255,255,0.9)', fontSize: 12, fontWeight: '900', letterSpacing: 3, marginTop: 16 },
+  rewardCard: { borderRadius: 40, padding: 40, width: '100%', alignItems: 'center', shadowOpacity: 0.4, shadowRadius: 25, elevation: 15 },
+  coinIcon: { width: 100, height: 100, borderRadius: 50, backgroundColor: '#F0FDF4', justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
+  rewardTitle: { fontSize: 26, fontWeight: '900', marginBottom: 12, letterSpacing: -0.5 },
+  rewardAmount: { fontSize: 44, fontWeight: '900', marginBottom: 16, letterSpacing: -2 },
+  completedFooter: { width: '100%', marginTop: 24 },
+  finishButton: { backgroundColor: 'rgba(255,255,255,0.15)', paddingVertical: 20, borderRadius: 24, alignItems: 'center', width: '100%' },
+  doneButton: { paddingVertical: 18, paddingHorizontal: 48, borderRadius: 24, marginTop: 10, shadowOpacity: 0.3, shadowRadius: 10, elevation: 5 },
+  doneButtonText: { color: '#fff', fontSize: 18, fontWeight: '900' },
 
   // --- MODALS (WEIGHT & CHAT) ---
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
