@@ -93,7 +93,7 @@ export default function HomeView({ stats, userLocation, avatarUrl, recentTransac
                 {/* --- HEADER --- */}
                 <View style={styles.headerContainer}>
                     <View>
-                        <Text style={[styles.headerGreeting, { color: "rgba(255,255,255,0.6)" }]}>
+                        <Text style={[styles.headerGreeting, { color: isDark ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.85)" }]}>
                             {new Date().getHours() < 12 ? t('home.goodMorning') : t('home.goodAfternoon') || 'Welcome back'}
                         </Text>
                         <Text style={[styles.headerName, { color: "#FFF" }]}>{displayName}</Text>
@@ -101,46 +101,46 @@ export default function HomeView({ stats, userLocation, avatarUrl, recentTransac
                     <View style={styles.headerActions}>
                         <LanguageSwitcher />
                         <TouchableOpacity
-                            style={[styles.avatarContainer, { borderColor: "rgba(255,255,255,0.2)" }]}
+                            style={[styles.avatarContainer, { borderColor: "rgba(255,255,255,0.3)" }]}
                             onPress={onProfilePress}
                             activeOpacity={0.7}
                         >
                             <Image source={{ uri: avatarUrl || Assets.PLACEHOLDERS.AVATAR }} style={styles.avatarImg} />
-                            <View style={styles.onlineDot} />
+                            <View style={[styles.onlineDot, { borderColor: isDark ? '#064E3B' : '#10B981' }]} />
                         </TouchableOpacity>
                     </View>
                 </View>
 
                 {/* --- ENVIRONMENTAL IMPACT CARD (GLASSMORHISM) --- */}
                 <View style={styles.heroImpactContainer}>
-                    <View style={[styles.impactCard, { backgroundColor: isDark ? 'rgba(2, 44, 34, 0.4)' : 'rgba(255, 255, 255, 0.7)', borderColor: 'rgba(255,255,255,0.1)' }]}>
+                    <View style={[styles.impactCard, { backgroundColor: isDark ? 'rgba(2, 44, 34, 0.4)' : 'rgba(255, 255, 255, 0.4)', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.3)' }]}>
                         <View style={styles.impactHeader}>
                             <View>
-                                <Text style={[styles.impactTitle, { color: '#FFF' }]}>{t('home.environmentalImpact')}</Text>
-                                <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: '700' }}>LIFETIME CONTRIBUTION</Text>
+                                <Text style={[styles.impactTitle, { color: isDark ? '#FFF' : '#065F46' }]}>{t('home.environmentalImpact')}</Text>
+                                <Text style={{ color: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(6,95,70,0.7)', fontSize: 11, fontWeight: '700' }}>LIFETIME CONTRIBUTION</Text>
                             </View>
-                            <View style={[styles.periodBadge, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
-                                <Text style={[styles.periodText, { color: '#FFF' }]}>{t('home.thisMonth')}</Text>
+                            <View style={[styles.periodBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(16,185,129,0.1)' }]}>
+                                <Text style={[styles.periodText, { color: isDark ? '#FFF' : '#047857' }]}>{t('home.thisMonth')}</Text>
                             </View>
                         </View>
 
                         <View style={styles.impactGrid}>
                             {/* Points */}
                             <View style={styles.impactItem}>
-                                <Text style={[styles.impactValue, { color: '#FFF' }]}>{stats.points.toLocaleString()}</Text>
-                                <Text style={[styles.impactLabel, { color: 'rgba(255,255,255,0.6)' }]}>{t('home.points')}</Text>
+                                <Text style={[styles.impactValue, { color: isDark ? '#FFF' : '#065F46' }]}>{stats.points.toLocaleString()}</Text>
+                                <Text style={[styles.impactLabel, { color: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(6,95,70,0.6)' }]}>{t('home.points')}</Text>
                             </View>
 
                             {/* CO2 (Bordered) */}
-                            <View style={[styles.impactItem, styles.impactItemBorder, { borderColor: 'rgba(255,255,255,0.1)' }]}>
-                                <Text style={[styles.impactValue, { color: colors.primary }]}>{stats.savedCO2}</Text>
-                                <Text style={[styles.impactLabel, { color: 'rgba(255,255,255,0.6)' }]}>{t('home.savedCO2')}</Text>
+                            <View style={[styles.impactItem, styles.impactItemBorder, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(16,185,129,0.1)' }]}>
+                                <Text style={[styles.impactValue, { color: theme.primary }]}>{stats.savedCO2}</Text>
+                                <Text style={[styles.impactLabel, { color: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(6,95,70,0.6)' }]}>{t('home.savedCO2')}</Text>
                             </View>
 
                             {/* Items */}
                             <View style={styles.impactItem}>
-                                <Text style={[styles.impactValue, { color: '#FFF' }]}>{stats.recycled}</Text>
-                                <Text style={[styles.impactLabel, { color: 'rgba(255,255,255,0.6)' }]}>KG RECYCLED</Text>
+                                <Text style={[styles.impactValue, { color: isDark ? '#FFF' : '#065F46' }]}>{stats.recycled}</Text>
+                                <Text style={[styles.impactLabel, { color: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(6,95,70,0.6)' }]}>KG RECYCLED</Text>
                             </View>
                         </View>
                     </View>
