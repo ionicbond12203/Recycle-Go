@@ -761,7 +761,7 @@ export default function ContributorPage() {
   );
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       {currentScreen === 'home' && (
         <HomeView
           stats={globalStats}

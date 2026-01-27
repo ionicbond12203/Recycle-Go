@@ -82,7 +82,12 @@ export default function HomeView({ stats, userLocation, avatarUrl, recentTransac
     const isNewUser = stats.points === 0 && stats.recycled === "0";
 
     return (
-        <ScrollView style={[styles.scrollContainer, { backgroundColor: theme.background }]} contentContainerStyle={{ paddingBottom: 150 }}>
+        <ScrollView
+            style={[styles.scrollContainer, { backgroundColor: theme.background }]}
+            contentContainerStyle={{ paddingBottom: 150 }}
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+        >
             {/* --- HERO SECTION WITH GRADIENT --- */}
             <LinearGradient
                 colors={theme.headerGradient}
@@ -116,31 +121,31 @@ export default function HomeView({ stats, userLocation, avatarUrl, recentTransac
                     <View style={[styles.impactCard, { backgroundColor: isDark ? 'rgba(2, 44, 34, 0.4)' : 'rgba(255, 255, 255, 0.4)', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.3)' }]}>
                         <View style={styles.impactHeader}>
                             <View>
-                                <Text style={[styles.impactTitle, { color: isDark ? '#FFF' : '#065F46' }]}>{t('home.environmentalImpact')}</Text>
-                                <Text style={{ color: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(6,95,70,0.7)', fontSize: 11, fontWeight: '700' }}>LIFETIME CONTRIBUTION</Text>
+                                <Text style={[styles.impactTitle, { color: isDark ? '#FFF' : '#047857' }]}>{t('home.environmentalImpact')}</Text>
+                                <Text style={{ color: isDark ? 'rgba(255,255,255,0.6)' : '#059669', fontSize: 11, fontWeight: '900' }}>LIFETIME CONTRIBUTION</Text>
                             </View>
-                            <View style={[styles.periodBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(16,185,129,0.1)' }]}>
-                                <Text style={[styles.periodText, { color: isDark ? '#FFF' : '#047857' }]}>{t('home.thisMonth')}</Text>
+                            <View style={[styles.periodBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : '#10B981', paddingVertical: 4 }]}>
+                                <Text style={[styles.periodText, { color: '#FFF', fontWeight: '900' }]}>{t('home.thisMonth')}</Text>
                             </View>
                         </View>
 
                         <View style={styles.impactGrid}>
                             {/* Points */}
                             <View style={styles.impactItem}>
-                                <Text style={[styles.impactValue, { color: isDark ? '#FFF' : '#065F46' }]}>{stats.points.toLocaleString()}</Text>
-                                <Text style={[styles.impactLabel, { color: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(6,95,70,0.6)' }]}>{t('home.points')}</Text>
+                                <Text style={[styles.impactValue, { color: isDark ? '#FFF' : '#064E3B' }]}>{stats.points.toLocaleString()}</Text>
+                                <Text style={[styles.impactLabel, { color: isDark ? 'rgba(255,255,255,0.7)' : '#065F46' }]}>{t('home.points')}</Text>
                             </View>
 
                             {/* CO2 (Bordered) */}
-                            <View style={[styles.impactItem, styles.impactItemBorder, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(16,185,129,0.1)' }]}>
-                                <Text style={[styles.impactValue, { color: theme.primary }]}>{stats.savedCO2}</Text>
-                                <Text style={[styles.impactLabel, { color: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(6,95,70,0.6)' }]}>{t('home.savedCO2')}</Text>
+                            <View style={[styles.impactItem, styles.impactItemBorder, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(16,185,129,0.3)' }]}>
+                                <Text style={[styles.impactValue, { color: '#059669' }]}>{stats.savedCO2}</Text>
+                                <Text style={[styles.impactLabel, { color: isDark ? 'rgba(255,255,255,0.7)' : '#065F46' }]}>{t('home.savedCO2')}</Text>
                             </View>
 
                             {/* Items */}
                             <View style={styles.impactItem}>
-                                <Text style={[styles.impactValue, { color: isDark ? '#FFF' : '#065F46' }]}>{stats.recycled}</Text>
-                                <Text style={[styles.impactLabel, { color: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(6,95,70,0.6)' }]}>KG RECYCLED</Text>
+                                <Text style={[styles.impactValue, { color: isDark ? '#FFF' : '#064E3B' }]}>{stats.recycled}</Text>
+                                <Text style={[styles.impactLabel, { color: isDark ? 'rgba(255,255,255,0.7)' : '#065F46' }]}>KG RECYCLED</Text>
                             </View>
                         </View>
                     </View>
@@ -269,7 +274,7 @@ export default function HomeView({ stats, userLocation, avatarUrl, recentTransac
 
 const styles = StyleSheet.create({
     scrollContainer: { flex: 1 },
-    heroSection: { paddingTop: 20, borderBottomLeftRadius: 32, borderBottomRightRadius: 32, paddingBottom: 30, marginBottom: 10 },
+    heroSection: { paddingTop: 60, borderBottomLeftRadius: 36, borderBottomRightRadius: 36, paddingBottom: 36, marginBottom: 12 },
     // Header
     headerContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 10, marginBottom: 10 },
     headerGreeting: { fontSize: 13, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 1 },
