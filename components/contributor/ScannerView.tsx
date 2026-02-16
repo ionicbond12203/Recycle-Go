@@ -4,7 +4,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useKeepAwake } from "expo-keep-awake";
 import React, { useEffect, useRef, useState } from "react";
 import { Dimensions, Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import {
+import Animated, {
     Easing,
     useAnimatedStyle,
     useSharedValue,
@@ -132,7 +132,26 @@ export default function ScannerView({ onScan, onClose }: ScannerViewProps) {
             />
 
             <View style={styles.overlay}>
-                {/* ... (existing overlay) ... */}
+                {/* Top Spacer */}
+                <View style={styles.maskRow} />
+
+                {/* Middle Row: Side Spacer - Frame - Side Spacer */}
+                <View style={styles.middleRow}>
+                    <View style={styles.maskSide} />
+                    <View style={styles.scanFrame}>
+                        <View style={[styles.corner, styles.topLeft]} />
+                        <View style={[styles.corner, styles.topRight]} />
+                        <View style={[styles.corner, styles.bottomLeft]} />
+                        <View style={[styles.corner, styles.bottomRight]} />
+                        <Animated.View style={[styles.scanLine, animatedStyle]} />
+                    </View>
+                    <View style={styles.maskSide} />
+                </View>
+
+                {/* Bottom Spacer */}
+                <View style={styles.maskRow}>
+                    <Text style={styles.instructionText}>{t('scanner.pointCamera')}</Text>
+                </View>
             </View>
 
             {/* Controls */}
@@ -171,7 +190,7 @@ const styles = StyleSheet.create({
     },
     maskRow: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.6)', // Keep semi-transparent for camera overlay
+        // backgroundColor: 'rgba(0,0,0,0.6)', // Removed as requested
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -181,7 +200,7 @@ const styles = StyleSheet.create({
     },
     maskSide: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.6)',
+        // backgroundColor: 'rgba(0,0,0,0.6)', // Removed as requested
     },
     scanFrame: {
         width: SCAN_FRAME_SIZE,

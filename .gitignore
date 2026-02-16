@@ -42,3 +42,6 @@ app-example
 # generated native folders
 /ios
 /android
+
+# Large LLM model files
+assets/LLM/

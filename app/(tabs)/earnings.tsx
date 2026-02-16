@@ -4,10 +4,12 @@ import React, { useState } from "react";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { GameMechanics } from "../../constants/GameMechanics";
 import { useAuth } from "../../contexts/AuthContext";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useTheme } from "../../contexts/ThemeContext";
 import { supabase } from "../../lib/supabase";
+import { Transaction } from "../../types";
 
 export default function EarningsScreen() {
   const router = useRouter();
@@ -15,7 +17,8 @@ export default function EarningsScreen() {
   const { colors, isDark } = useTheme();
   const { t } = useLanguage();
   const [balance, setBalance] = useState(0);
-  const [history, setHistory] = useState<any[]>([]);
+  const [totalWeight, setTotalWeight] = useState(0);
+  const [history, setHistory] = useState<Transaction[]>([]);
 
   // Theme Configuration
   const THEME = {
@@ -61,8 +64,11 @@ export default function EarningsScreen() {
     if (!user) return;
 
     const fetchBalance = async () => {
-      const { data } = await supabase.from('collectors').select('wallet_balance').eq('id', user.id).single();
-      if (data) setBalance(Number(data.wallet_balance || 0));
+      const { data } = await supabase.from('collectors').select('wallet_balance, total_weight').eq('id', user.id).single();
+      if (data) {
+        setBalance(Number(data.wallet_balance || 0));
+        setTotalWeight(Number(data.total_weight || 0));
+      }
     };
 
     const fetchHistory = async () => {
@@ -79,13 +85,53 @@ export default function EarningsScreen() {
     fetchBalance();
     fetchHistory();
 
-    const channel = supabase.channel('earnings-update')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'collectors', filter: `id = eq.${user.id} ` }, (payload) => {
-        if (payload.new.wallet_balance) setBalance(Number(payload.new.wallet_balance));
+    // 1. Listen for balance updates
+    const collectorChannel = supabase.channel(`collector-balance-${user.id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'collectors',
+        filter: `id=eq.${user.id}`
+      }, (payload) => {
+        if (payload.new.wallet_balance !== undefined) {
+          setBalance(Number(payload.new.wallet_balance));
+        }
+        if (payload.new.total_weight !== undefined) {
+          setTotalWeight(Number(payload.new.total_weight));
+        }
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    // 2. Listen for new confirmed transactions
+    const transactionChannel = supabase.channel(`collector-transactions-${user.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'transactions',
+        filter: `collector_id=eq.${user.id}`
+      }, (payload) => {
+        if (payload.new.status === 'confirmed') {
+          fetchBalance();
+          fetchHistory();
+        }
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'transactions',
+        filter: `collector_id=eq.${user.id}`
+      }, (payload) => {
+        if (payload.new.status === 'confirmed') {
+          fetchBalance();
+          fetchHistory();
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(collectorChannel);
+      supabase.removeChannel(transactionChannel);
+    };
   }, [user]);
 
   const handleStartCollecting = () => {
@@ -113,7 +159,7 @@ export default function EarningsScreen() {
             <View style={styles.balanceSection}>
               <Text style={[styles.cardLabel, { color: currentTheme.cardLabel }]}>LIFETIME ENVIRONMENTAL IMPACT</Text>
               <View style={styles.balanceRow}>
-                <Text style={[styles.balanceAmount, { color: currentTheme.cardText }]}>{(balance * 0.45).toFixed(1)}</Text>
+                <Text style={[styles.balanceAmount, { color: currentTheme.cardText }]}>{(totalWeight * GameMechanics.POINTS.CO2_PER_KG).toFixed(1)}</Text>
                 <Text style={[styles.currencySymbol, { color: isDark ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.9)', fontSize: 24, marginLeft: 8 }]}>KG CO2</Text>
               </View>
               <Text style={[styles.cardLabel, { color: currentTheme.cardLabel, marginTop: 4 }]}>SAVED FROM ATMOSPHERE</Text>
@@ -129,7 +175,7 @@ export default function EarningsScreen() {
         <View style={styles.statsRow}>
           <View style={[styles.statBox, { backgroundColor: currentTheme.cardBg, borderColor: currentTheme.border }]}>
             <MaterialCommunityIcons name="scale-balance" size={22} color={currentTheme.accent} style={{ marginBottom: 8 }} />
-            <Text style={[styles.statValue, { color: currentTheme.accent }]}>{balance.toFixed(1)}kg</Text>
+            <Text style={[styles.statValue, { color: currentTheme.accent }]}>{totalWeight.toFixed(1)}kg</Text>
             <Text style={[styles.statLabel, { color: currentTheme.textSecondary }]}>Total Recycled</Text>
           </View>
           <View style={[styles.statBox, { backgroundColor: currentTheme.cardBg, borderColor: currentTheme.border }]}>

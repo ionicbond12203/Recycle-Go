@@ -32,6 +32,23 @@ export interface Job {
 }
 
 /**
+ * Transaction interface for recycling missions.
+ */
+export interface Transaction {
+    id: string;
+    collector_id: string;
+    contributor_id: string;
+    weight_kg: number;
+    status: 'pending' | 'confirmed' | 'rejected';
+    commission_amount: number;
+    created_at: string;
+    contributors?: {
+        name: string;
+        address: string;
+    };
+}
+
+/**
  * App state for collector home screen navigation flow.
  */
 export type CollectorAppState = 'idle' | 'searching' | 'request_received' | 'navigating' | 'driving' | 'arrived' | 'completed';

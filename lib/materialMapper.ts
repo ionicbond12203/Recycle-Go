@@ -127,7 +127,17 @@ export function mapLabelsToMaterial(labels: string[]): MaterialInfo {
         'animal', 'mammal', 'bird', 'person', 'human', 'face', 'hair'
     ];
 
-    if (lowerLabels.some(l => nonBinItems.some(k => l.includes(k)))) {
+    // Helper to check if a keyword exists as a whole word in any label
+    const hasWholeWordMatch = (keywords: string[]) => {
+        return lowerLabels.some(label =>
+            keywords.some(keyword => {
+                const regex = new RegExp(`\\b${keyword}\\b`, 'i');
+                return regex.test(label);
+            })
+        );
+    };
+
+    if (hasWholeWordMatch(nonBinItems)) {
         const specific = findSpecific(nonBinItems);
         return {
             material: 'Cannot Recycle',

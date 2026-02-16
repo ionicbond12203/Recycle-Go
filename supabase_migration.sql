@@ -10,6 +10,7 @@ ADD COLUMN IF NOT EXISTS co2_saved numeric DEFAULT 0;
 
 -- Earnings & Commission Schema
 ALTER TABLE public.collectors ADD COLUMN IF NOT EXISTS wallet_balance numeric DEFAULT 0;
+ALTER TABLE public.collectors ADD COLUMN IF NOT EXISTS total_weight numeric DEFAULT 0;
 ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS commission_amount numeric DEFAULT 0;
 
 -- Verification Flow: Transactions table

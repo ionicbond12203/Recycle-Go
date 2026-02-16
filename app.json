@@ -41,7 +41,13 @@
         }
       ],
       "expo-secure-store",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Recycle Go to use your location to show contributors where you are during pickup."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

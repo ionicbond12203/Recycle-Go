@@ -3,11 +3,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, BackHandler, Dimensions, Image, Linking, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, AppStateStatus, BackHandler, Dimensions, Image, Linking, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import MapViewDirections from 'react-native-maps-directions';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import InnovationVisualizerModal from '../../components/collector/InnovationVisualizerModal';
 import WeightVerificationModal from '../../components/collector/WeightVerificationModal';
 import ChatModal from '../../components/contributor/ChatModal';
 import JobDetailModal from '../../components/JobDetailModal';
@@ -16,8 +17,9 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { getHaversineDistance, Point, RouteMetrics, solveRealTSP } from '../../lib/algorithms';
+import { setBackgroundCollectorId, startBackgroundLocationTracking, stopBackgroundLocationTracking } from '../../lib/backgroundLocation';
 import { supabase } from '../../lib/supabase';
-import { ChatMessage, CollectorAppState, Job, MapType } from '../../types';
+import { ChatMessage, CollectorAppState, Job, MapType, Transaction } from '../../types';
 import { appleMapStyle } from '../appleMapStyle';
 
 // --- Configuration ---
@@ -155,8 +157,61 @@ export default function CollectorHomeScreen() {
   /** ID of the pending transaction, used to listen for confirmation updates. */
   const [currentTransactionId, setCurrentTransactionId] = useState<string | null>(null);
   const [routeMetrics, setRouteMetrics] = useState<RouteMetrics | null>(null);
+  const [showInnovationModal, setShowInnovationModal] = useState(false);
+  const [lastTransaction, setLastTransaction] = useState<Transaction | null>(null);
+
+  // --- AppState tracking for external navigation (Google Maps) ---
+  /** Tracks if app is returning from background to defer heavy operations */
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const [isReturningFromBackground, setIsReturningFromBackground] = useState(false);
 
   // --- Effects ---
+
+  /**
+   * Effect: AppState Listener for External Navigation
+   * 
+   * When using external Google Maps, the app goes to background.
+   * On returning, this effect:
+   * 1. Detects the foreground transition
+   * 2. Sets a flag to defer heavy re-renders
+   * 3. Immediately syncs location to Supabase when returning to foreground
+   */
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', async (nextAppState: AppStateStatus) => {
+      // Detect transition from background to active
+      if (
+        appStateRef.current.match(/inactive|background/) &&
+        nextAppState === 'active'
+      ) {
+        // If we were in external driving mode, sync location immediately
+        if ((appState === 'driving' || appState === 'navigating') && navigationMode === 'external') {
+          console.log('App returning from background (external nav) - syncing location');
+          setIsReturningFromBackground(true);
+
+          // Immediately get and sync current location
+          try {
+            const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            const { latitude, longitude } = location.coords;
+            setRegion(prev => ({ ...prev, latitude, longitude }));
+            await updateSupabaseLocation(latitude, longitude);
+            console.log('Location synced after returning from Google Maps:', latitude, longitude);
+          } catch (e) {
+            console.log('Failed to sync location on foreground:', e);
+          }
+
+          // Defer UI settling
+          setTimeout(() => {
+            setIsReturningFromBackground(false);
+          }, 300);
+        }
+      }
+      appStateRef.current = nextAppState;
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [appState, navigationMode, collectorId]);
 
   useEffect(() => {
     const initializeCollectorId = async () => {
@@ -223,17 +278,49 @@ export default function CollectorHomeScreen() {
   /**
    * Effect: Location Tracking Toggle
    * 
-   * Monitors `appState` and `navigationMode` to decide if high-frequency tracking
-   * should be enabled. Tracking is ONLY active when driving in 'internal' mode.
+   * Monitors `appState` and `navigationMode` to decide tracking behavior.
+   * - 'internal' driving: foreground high-frequency tracking with camera
+   * - 'external' driving: BACKGROUND location tracking (works when app is in background)
+   * - 'navigating'/'arrived': foreground tracking for Supabase sync
    */
   useEffect(() => {
-    if (appState === 'driving' && navigationMode === 'internal') {
-      startLocationTracking();
+    // Set collector ID for background task
+    if (collectorId) {
+      setBackgroundCollectorId(collectorId);
+    }
+
+    // Sync location whenever collector is on an active job
+    if (appState === 'navigating' || appState === 'driving' || appState === 'arrived') {
+      if (appState === 'driving' && navigationMode === 'internal') {
+        // Full foreground tracking with camera updates
+        stopBackgroundLocationTracking();
+        startLocationTracking();
+      } else if (appState === 'driving' && navigationMode === 'external') {
+        // BACKGROUND tracking for Google Maps navigation
+        stopLocationTracking();
+        startBackgroundLocationTracking().then(success => {
+          if (success) {
+            console.log('Background location tracking enabled');
+          } else {
+            // Fallback to foreground tracking
+            console.log('Background tracking failed, using foreground fallback');
+            startExternalModeLocationSync();
+          }
+        });
+      } else {
+        // navigating or arrived: foreground tracking
+        startExternalModeLocationSync();
+      }
     } else {
       stopLocationTracking();
+      stopBackgroundLocationTracking();
     }
-    return () => stopLocationTracking();
-  }, [appState, navigationMode]);
+
+    return () => {
+      stopLocationTracking();
+      stopBackgroundLocationTracking();
+    };
+  }, [appState, navigationMode, collectorId]);
 
   // --- Chat Subscription ---
   /**
@@ -348,7 +435,7 @@ export default function CollectorHomeScreen() {
 
           Alert.alert("Success!", "Contributor confirmed.");
 
-          handleFinishJob(); // Auto trigger finish
+          handleFinishJob(payload.new as Transaction); // Auto trigger finish
         }
       })
       .subscribe();
@@ -408,6 +495,24 @@ export default function CollectorHomeScreen() {
       locationSubscription.remove();
       setLocationSubscription(null);
     }
+  };
+
+  /**
+   * Starts lighter location tracking for external navigation mode.
+   * Only syncs location to Supabase so contributors can see the collector.
+   * Uses lower frequency (10m intervals) to conserve battery.
+   */
+  const startExternalModeLocationSync = async () => {
+    if (locationSubscription) locationSubscription.remove();
+    const sub = await Location.watchPositionAsync(
+      { accuracy: Location.Accuracy.Balanced, distanceInterval: 10 },
+      (newLocation) => {
+        const { latitude, longitude } = newLocation.coords;
+        setRegion(prev => ({ ...prev, latitude, longitude }));
+        updateSupabaseLocation(latitude, longitude);
+      }
+    );
+    setLocationSubscription(sub);
   };
 
   const updateSupabaseLocation = async (lat: number, lng: number) => {
@@ -884,7 +989,7 @@ export default function CollectorHomeScreen() {
    * 3. IF next job exists -> Auto-route to it.
    * 4. ELSE -> Show completion screen ('completed' state).
    */
-  const handleFinishJob = async () => {
+  const handleFinishJob = async (transactionPayload?: Transaction) => {
     // 1. Update contributor status to 'completed'
     if (activeJob) {
       console.log("Finishing job, updating status for contributor:", activeJob.id);
@@ -902,6 +1007,10 @@ export default function CollectorHomeScreen() {
       setActiveQueue(prev => prev.filter(j => j.id !== activeJob!.id));
     }
 
+    if (transactionPayload) {
+      setLastTransaction(transactionPayload);
+    }
+
     // Check if more jobs exist
     const remainingQueue = activeQueue.filter(j => j.id !== activeJob?.id);
 
@@ -917,8 +1026,9 @@ export default function CollectorHomeScreen() {
         setActiveJob(null);
         setAvailableJobs([]);
         setRouteInfo(null);
+        setLastTransaction(null);
         setAppState('idle');
-      }, 3000);
+      }, 5000); // 5 seconds for success screen
     }
   };
   const handleMapTypeToggle = () => setMapType(prev => (prev === 'standard' ? 'satellite' : prev === 'satellite' ? 'hybrid' : 'standard'));
@@ -1037,7 +1147,14 @@ export default function CollectorHomeScreen() {
 
       {routeMetrics && (
         <View style={[styles.optimizationStats, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#F8FAFC', borderColor: colors.border }]}>
-          <Text style={[styles.optTitle, { color: colors.text }]}>REAL-TIME ROUTE OPTIMIZATION</Text>
+
+          <TouchableOpacity
+            onPress={() => setShowInnovationModal(true)}
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}
+          >
+            <Text style={[styles.optTitle, { color: colors.text, marginBottom: 0 }]}>REAL-TIME ROUTE OPTIMIZATION</Text>
+            <MaterialCommunityIcons name="information-outline" size={18} color={colors.primary} />
+          </TouchableOpacity>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
             <View style={styles.optItem}>
               <Text style={styles.optLabel}>TOTAL DISTANCE</Text>
@@ -1121,19 +1238,29 @@ export default function CollectorHomeScreen() {
   /**
    * Renders the panel when using External Maps (Google Maps app).
    * Shows a 'Trip in Progress' placeholder and 'I Have Arrived' button.
+   * Includes a brief loading overlay when returning from background to prevent lag.
    */
   const renderTripInProgressPanel = () => (
     <View style={[styles.tripPanel, { paddingBottom: insets.bottom + 20 }]}>
-      <View style={styles.tripHeader}>
-        <View style={styles.pulsingDotContainer}>
-          <View style={styles.pulsingDot} /><Text style={styles.tripStatusText}>Trip in Progress...</Text>
+      {isReturningFromBackground ? (
+        <View style={{ alignItems: 'center', paddingVertical: 30 }}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.tripStatusText, { marginTop: 10 }]}>Resuming...</Text>
         </View>
-        <TouchableOpacity style={styles.reopenMapsButton} onPress={openMapsNavigation}><MaterialCommunityIcons name="google-maps" size={20} color="#1A73E8" /><Text style={styles.reopenMapsText}>Open Maps</Text></TouchableOpacity>
-      </View>
-      <Text style={styles.tripSubText}>Navigation is active in Google Maps. Return here when you reach the location.</Text>
-      <TouchableOpacity style={styles.arrivedButtonLarge} onPress={handleArrived}>
-        <MaterialCommunityIcons name="map-marker-check" size={24} color="#fff" style={{ marginRight: 8 }} /><Text style={styles.buttonText}>I Have Arrived</Text>
-      </TouchableOpacity>
+      ) : (
+        <>
+          <View style={styles.tripHeader}>
+            <View style={styles.pulsingDotContainer}>
+              <View style={styles.pulsingDot} /><Text style={styles.tripStatusText}>Trip in Progress...</Text>
+            </View>
+            <TouchableOpacity style={styles.reopenMapsButton} onPress={openMapsNavigation}><MaterialCommunityIcons name="google-maps" size={20} color="#1A73E8" /><Text style={styles.reopenMapsText}>Open Maps</Text></TouchableOpacity>
+          </View>
+          <Text style={styles.tripSubText}>Navigation is active in Google Maps. Return here when you reach the location.</Text>
+          <TouchableOpacity style={styles.arrivedButtonLarge} onPress={handleArrived}>
+            <MaterialCommunityIcons name="map-marker-check" size={24} color="#fff" style={{ marginRight: 8 }} /><Text style={styles.buttonText}>I Have Arrived</Text>
+          </TouchableOpacity>
+        </>
+      )}
     </View>
   );
 
@@ -1202,11 +1329,13 @@ export default function CollectorHomeScreen() {
             <MaterialCommunityIcons name="tree" size={60} color={colors.primary} />
           </View>
           <Text style={[styles.rewardTitle, { color: colors.text }]}>Mission Accomplished!</Text>
-          <Text style={[styles.rewardAmount, { color: colors.primary }]}>+50 ECO-PTS</Text>
-          <Text style={{ color: colors.textSecondary, textAlign: 'center', marginBottom: 20 }}>
-            You saved ~2.5 kg of CO2 in this trip.
+          <Text style={[styles.rewardAmount, { color: colors.primary }]}>
+            +{lastTransaction ? Math.round(lastTransaction.weight_kg * GameMechanics.POINTS.PER_KG) : 50} ECO-PTS
           </Text>
-          <TouchableOpacity style={[styles.doneButton, { backgroundColor: colors.primary }]} onPress={() => setAppState('idle')}><Text style={styles.doneButtonText}>Back to Dashboard</Text></TouchableOpacity>
+          <Text style={{ color: colors.textSecondary, textAlign: 'center', marginBottom: 20 }}>
+            You saved ~{lastTransaction ? (lastTransaction.weight_kg * GameMechanics.POINTS.CO2_PER_KG).toFixed(1) : 2.5} kg of CO2 in this trip.
+          </Text>
+          <TouchableOpacity style={[styles.doneButton, { backgroundColor: colors.primary }]} onPress={() => { setLastTransaction(null); setAppState('idle'); }}><Text style={styles.doneButtonText}>Back to Dashboard</Text></TouchableOpacity>
         </View>
       </SafeAreaView>
     </Modal>
@@ -1297,6 +1426,7 @@ export default function CollectorHomeScreen() {
         waitingForConfirmation={waitingForConfirmation}
       />
 
+
       <JobDetailModal
         visible={showDetailModal}
         job={activeJob}
@@ -1306,6 +1436,12 @@ export default function CollectorHomeScreen() {
           setShowDetailModal(false);
           handleDeclineJob();
         }}
+      />
+
+      <InnovationVisualizerModal
+        visible={showInnovationModal}
+        onClose={() => setShowInnovationModal(false)}
+        routeMetrics={routeMetrics}
       />
 
       {appState !== 'driving' && (

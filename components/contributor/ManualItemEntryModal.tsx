@@ -11,6 +11,7 @@ export interface ManualItem {
     points: number;
     co2: number;
     imageUri: string;
+    recyclable: boolean;
 }
 
 interface ManualItemEntryModalProps {
@@ -26,10 +27,10 @@ export default function ManualItemEntryModal({ visible, onClose, onAdd }: Manual
     const [selectedMaterial, setSelectedMaterial] = useState("plastic");
 
     const MATERIALS = [
-        { id: 'plastic', name: t('materials.plastic'), icon: 'cup-water', points: 10, co2: 0.5, color: '#3498db' },
-        { id: 'glass', name: t('materials.glass'), icon: 'bottle-wine', points: 15, co2: 0.8, color: '#e67e22' },
-        { id: 'aluminium', name: t('materials.aluminium'), icon: 'can', points: 25, co2: 1.2, color: '#95a5a6' },
-        { id: 'paper', name: t('materials.paper'), icon: 'newspaper', points: 5, co2: 0.3, color: '#f1c40f' }
+        { id: 'plastic', name: t('materials.plastic'), icon: 'cup-water', points: 10, co2: 0.5, color: '#3498db', recyclable: true },
+        { id: 'glass', name: t('materials.glass'), icon: 'bottle-wine', points: 15, co2: 0.8, color: '#e67e22', recyclable: true },
+        { id: 'aluminium', name: t('materials.aluminium'), icon: 'can', points: 25, co2: 1.2, color: '#95a5a6', recyclable: true },
+        { id: 'paper', name: t('materials.paper'), icon: 'newspaper', points: 5, co2: 0.3, color: '#f1c40f', recyclable: true }
     ];
 
     const handleAdd = () => {
@@ -42,7 +43,8 @@ export default function ManualItemEntryModal({ visible, onClose, onAdd }: Manual
             material: materialObj?.name || selectedMaterial,
             points: materialObj?.points || 10,
             co2: materialObj?.co2 || 0.5,
-            imageUri: "https://vsnvghvpsnzpuvxpslyw.supabase.co/storage/v1/object/public/scanned_images/placeholders/manual_item.png" // Placeholder
+            imageUri: "https://vsnvghvpsnzpuvxpslyw.supabase.co/storage/v1/object/public/scanned_images/placeholders/manual_item.png", // Placeholder
+            recyclable: materialObj?.recyclable ?? true
         });
 
         setName("");
@@ -95,7 +97,7 @@ export default function ManualItemEntryModal({ visible, onClose, onAdd }: Manual
                         onPress={handleAdd}
                         disabled={!name.trim()}
                     >
-                        <Text style={styles.addButtonText}>{t('actions.addItem') || "Add to Cart"}</Text>
+                        <Text style={styles.addButtonText}>Add to Cart</Text>
                     </TouchableOpacity>
                 </View>
             </SafeAreaView>

@@ -158,19 +158,54 @@ export default function ContributorPage() {
     fetchStats();
   }, [user]);
 
-  // Track Collector Updates
+  // Track Collector Updates (Listen for both INSERT and UPDATE since upsert may trigger INSERT)
+  // Also includes polling fallback since Supabase Realtime can be unreliable
   useEffect(() => {
-    const channel = supabase.channel('realtime-collectors')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'collectors' }, (payload: any) => {
+    // Only subscribe if we have a collector assigned
+    if (!currentCollectorId) return;
+
+    // Immediately fetch collector's current location
+    const fetchCollectorLocation = async () => {
+      const { data, error } = await supabase
+        .from('collectors')
+        .select('latitude, longitude')
+        .eq('id', currentCollectorId)
+        .single();
+
+      if (data && data.latitude && data.longitude) {
+        setCollectorLocation({ latitude: data.latitude, longitude: data.longitude });
+        console.log('Fetched collector location:', data.latitude, data.longitude);
+      }
+    };
+
+    fetchCollectorLocation();
+
+    // Set up realtime subscription
+    const channel = supabase.channel(`collector-location-${currentCollectorId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'collectors',
+        filter: `id=eq.${currentCollectorId}`
+      }, (payload: any) => {
         const newLoc = payload.new;
-        if (newLoc.id) setCurrentCollectorId(newLoc.id);
-        if (newLoc.latitude && newLoc.longitude) {
+        if (newLoc && newLoc.latitude && newLoc.longitude) {
           setCollectorLocation({ latitude: newLoc.latitude, longitude: newLoc.longitude });
+          console.log('Realtime collector location:', newLoc.latitude, newLoc.longitude);
         }
       })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, []);
+      .subscribe((status) => {
+        console.log('Collector location subscription status:', status);
+      });
+
+    // Polling fallback every 5 seconds (in case Realtime fails)
+    const pollInterval = setInterval(fetchCollectorLocation, 5000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(pollInterval);
+    };
+  }, [currentCollectorId]);
 
   // Fetch Collector Profile when ID changes
   useEffect(() => {
@@ -294,8 +329,14 @@ export default function ContributorPage() {
         filter: `id=eq.${deviceId}`
       }, (payload) => {
         const newStatus = payload.new.status;
+        const assignedCollectorId = payload.new.collector_id;
 
-        if (newStatus === 'completed') {
+        // When assigned to a collector, capture their ID for tracking
+        if (newStatus === 'assigned' && assignedCollectorId) {
+          console.log('Collector assigned:', assignedCollectorId);
+          setCurrentCollectorId(assignedCollectorId);
+          setCurrentScreen('tracking');
+        } else if (newStatus === 'completed') {
           clearTrackingState();
           setCart([]); // Clear cart as well
           setIsActive(false);
@@ -333,7 +374,8 @@ export default function ContributorPage() {
         points: result.points,
         co2: result.co2 ? `${result.co2}kg` : '0kg', // Dynamic CO2
         co2Value: result.co2, // Raw value for calculation
-        name: result.name
+        name: result.name,
+        recyclable: result.recyclable
       });
       setCurrentScreen('result');
     } catch (error) {
@@ -354,7 +396,7 @@ export default function ContributorPage() {
   };
 
   const handleAddToCart = async () => {
-    if (!scannedItem) return;
+    if (!scannedItem || !scannedItem.recyclable) return;
 
     // Guest restriction - must sign in to save data
     if (isGuest || !user) {
@@ -440,6 +482,8 @@ export default function ContributorPage() {
       return;
     }
 
+    if (!manualItem.recyclable) return;
+
     setLoadingUpload(true);
     try {
       // 1. Add to local cart
@@ -512,6 +556,7 @@ export default function ContributorPage() {
         { onConflict: "id" }
       );
       if (error) throw error;
+      setCart([]); // Clear cart immediately to prevent cancellation/modifications
       setIsActive(true);
       Alert.alert(`✅ ${t('actions.requestSent')}`, t('actions.waitingForCollector'));
     } catch (error: any) {
@@ -558,14 +603,16 @@ export default function ContributorPage() {
 
       if (error) throw error;
 
-      // 3. Credit Collector Wallet
+      // 3. Credit Collector Wallet & Impact Weight
       // Note: In a real app, use an RPC for atomic increment. Here we do read-modify-write for simplicity.
       const collectorId = pendingTransaction.collector_id;
       if (collectorId) {
-        const { data: collectorData } = await supabase.from('collectors').select('wallet_balance').eq('id', collectorId).single();
+        const { data: collectorData } = await supabase.from('collectors').select('wallet_balance, total_weight').eq('id', collectorId).single();
         const currentBalance = Number(collectorData?.wallet_balance || 0);
+        const currentWeight = Number(collectorData?.total_weight || 0);
         await supabase.from('collectors').update({
-          wallet_balance: currentBalance + commission
+          wallet_balance: currentBalance + commission,
+          total_weight: currentWeight + weight
         }).eq('id', collectorId);
       }
 
@@ -576,9 +623,34 @@ export default function ContributorPage() {
       // const weight = pendingTransaction.weight_kg; // Already defined above
       const earnedPoints = Math.round(weight * GameMechanics.POINTS.PER_KG);
       const earnedCO2 = weight * GameMechanics.POINTS.CO2_PER_KG;
-      const totalItems = cart.length || 1; // Fallback if cart cleared
+
 
       // 3. Update Profile
+      // 3. Update Profile (Moved to after item linking for accurate count)
+
+      // 4. Link Scanned Items to this Transaction
+      const { data: updatedItems, error: itemUpdateError } = await supabase
+        .from('scanned_items')
+        .update({ transaction_id: pendingTransaction.id })
+        .eq('contributor_id', user.id)
+        .is('transaction_id', null)
+        .select();
+
+      console.log("Linking items for user:", user.id, "Transaction:", pendingTransaction.id);
+      let linkedCount = 0;
+      if (itemUpdateError) {
+        console.error("Failed to link items:", itemUpdateError);
+        Alert.alert("Warning", "Could not link items to transaction history.");
+      } else {
+        linkedCount = updatedItems?.length || 0;
+        console.log("Successfully linked items count:", linkedCount);
+      }
+
+      // 4b. Recalculate Stats with accurate count
+      const totalItems = linkedCount > 0 ? linkedCount : (cart.length || 1);
+
+
+      // 5. Update Profile with accurate count
       const { data: currentData } = await supabase.from('profiles').select('points, total_co2_saved, recycled_items').eq('id', user.id).single();
       const currentPoints = currentData?.points || 0;
       const currentCO2 = currentData?.total_co2_saved || 0;
@@ -590,23 +662,7 @@ export default function ContributorPage() {
         recycled_items: currentRecycled + totalItems
       }).eq('id', user.id);
 
-      // 4. Link Scanned Items to this Transaction
-      const { data: updatedItems, error: itemUpdateError } = await supabase
-        .from('scanned_items')
-        .update({ transaction_id: pendingTransaction.id })
-        .eq('contributor_id', user.id)
-        .is('transaction_id', null)
-        .select();
-
-      console.log("Linking items for user:", user.id, "Transaction:", pendingTransaction.id);
-      if (itemUpdateError) {
-        console.error("Failed to link items:", itemUpdateError);
-        Alert.alert("Warning", "Could not link items to transaction history.");
-      } else {
-        console.log("Successfully linked items count:", updatedItems?.length);
-      }
-
-      // 5. Update Local State & UI
+      // 6. Update Local State & UI
       setGlobalStats(prev => ({
         points: prev.points + earnedPoints,
         savedCO2: `${(((parseFloat(prev.savedCO2) || 0) + earnedCO2)).toFixed(2)}kg`,

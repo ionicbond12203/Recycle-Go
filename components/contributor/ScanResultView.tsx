@@ -11,6 +11,7 @@ interface ScannedItem {
     points: number;
     co2: string;
     name: string;
+    recyclable: boolean;
 }
 
 interface ScanResultProps {
@@ -53,8 +54,25 @@ export default function ScanResultView({ item, onAddToCart, onCancel }: ScanResu
                         <Text style={[styles.resultStatValue, { color: colors.text }]}>{item.points}</Text>
                     </View>
                 </View>
-                <TouchableOpacity style={[styles.primaryButton, { backgroundColor: colors.primary }]} onPress={onAddToCart}>
-                    <Text style={[styles.primaryButtonText, { color: colors.textInverse }]}>{t('actions.addToCart')}</Text>
+                {!item.recyclable && (
+                    <View style={[styles.warningBox, { backgroundColor: colors.error + '10' }]}>
+                        <Ionicons name="warning-outline" size={20} color={colors.error || "#ff4d4d"} />
+                        <Text style={[styles.warningText, { color: colors.error || "#ff4d4d" }]}>
+                            {t('result.notRecyclable') || "This item cannot be recycled in our bins."}
+                        </Text>
+                    </View>
+                )}
+
+                <TouchableOpacity
+                    style={[
+                        styles.primaryButton,
+                        { backgroundColor: item.recyclable ? colors.primary : colors.secondary }
+                    ]}
+                    onPress={item.recyclable ? onAddToCart : onCancel}
+                >
+                    <Text style={[styles.primaryButtonText, { color: colors.textInverse }]}>
+                        {item.recyclable ? "Add to Cart" : "Back to Homepage"}
+                    </Text>
                 </TouchableOpacity>
             </View>
         </View>
@@ -80,4 +98,6 @@ const styles = StyleSheet.create({
     resultStatValue: { fontSize: 16, fontWeight: 'bold' },
     primaryButton: { paddingVertical: 18, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
     primaryButtonText: { fontSize: 16, fontWeight: '700' },
+    warningBox: { flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 12, marginBottom: 20, gap: 10 },
+    warningText: { fontSize: 14, fontWeight: '600', flex: 1 },
 });
