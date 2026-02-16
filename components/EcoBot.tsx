@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { FlatList, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -25,7 +25,16 @@ export default function EcoBot({ visible, onClose }: EcoBotProps) {
     ]);
     const [inputText, setInputText] = useState("");
     const [suggestions, setSuggestions] = useState<string[]>([]);
+    const [isStreaming, setIsStreaming] = useState(false);
     const flatListRef = useRef<FlatList>(null);
+    const streamIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    // Cleanup interval on unmount
+    useEffect(() => {
+        return () => {
+            if (streamIntervalRef.current) clearInterval(streamIntervalRef.current);
+        };
+    }, []);
 
     const ALL_SUGGESTIONS = [
         "Is plastic foil recyclable?",
@@ -46,21 +55,60 @@ export default function EcoBot({ visible, onClose }: EcoBotProps) {
         }
     }, [visible]);
 
+    const simulateStreaming = useCallback((botMsgId: string, fullText: string) => {
+        const words = fullText.split(/(\s+)/); // Split but keep whitespace
+        let wordIndex = 0;
+
+        streamIntervalRef.current = setInterval(() => {
+            if (wordIndex >= words.length) {
+                if (streamIntervalRef.current) clearInterval(streamIntervalRef.current);
+                streamIntervalRef.current = null;
+                setIsStreaming(false);
+                return;
+            }
+
+            // Add a few words at a time for natural pacing
+            const chunk = words.slice(wordIndex, wordIndex + 2).join('');
+            wordIndex += 2;
+
+            setMessages(prev =>
+                prev.map(m =>
+                    m.id === botMsgId
+                        ? { ...m, text: m.text + chunk }
+                        : m
+                )
+            );
+        }, 30);
+    }, []);
+
     const handleSend = async (overrideText?: string) => {
         const textToSend = overrideText || inputText;
-        if (!textToSend.trim()) return;
+        if (!textToSend.trim() || isStreaming) return;
 
         const userMsg: Message = { id: Date.now().toString(), text: textToSend, sender: 'user' };
-        setMessages(prev => [...prev, userMsg]);
+        const botMsgId = (Date.now() + 1).toString();
+        const botMsg: Message = { id: botMsgId, text: '', sender: 'bot' };
+
+        setMessages(prev => [...prev, userMsg, botMsg]);
         setInputText("");
-        setSuggestions([]); // Clear suggestions after first interaction
+        setSuggestions([]);
+        setIsStreaming(true);
 
-        // Show generic thinking first? Or just wait.
-        // Let's add a temporary "Thinking..." placeholder or just wait.
-        // For simplicity, we just wait.
-
-        const reply = await askGemini(textToSend, messages);
-        setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), text: reply, sender: 'bot' }]);
+        try {
+            const fullReply = await askGemini(textToSend, messages);
+            // Simulate streaming by revealing word-by-word
+            simulateStreaming(botMsgId, fullReply);
+        } catch (error) {
+            console.error('Chat error:', error);
+            setMessages(prev =>
+                prev.map(m =>
+                    m.id === botMsgId
+                        ? { ...m, text: 'Sorry, I\'m having trouble connecting. 📡' }
+                        : m
+                )
+            );
+            setIsStreaming(false);
+        }
     };
 
     return (
@@ -167,8 +215,8 @@ export default function EcoBot({ visible, onClose }: EcoBotProps) {
                             placeholderTextColor={colors.textTertiary}
                             onSubmitEditing={() => handleSend()}
                         />
-                        <TouchableOpacity style={[styles.sendBtn, { backgroundColor: colors.primary }]} onPress={() => handleSend()}>
-                            <Ionicons name="send" size={20} color={colors.textInverse} />
+                        <TouchableOpacity style={[styles.sendBtn, { backgroundColor: colors.primary, opacity: isStreaming ? 0.5 : 1 }]} onPress={() => handleSend()} disabled={isStreaming}>
+                            <Ionicons name={isStreaming ? "ellipsis-horizontal" : "send"} size={20} color={colors.textInverse} />
                         </TouchableOpacity>
                     </View>
                 </KeyboardAvoidingView>

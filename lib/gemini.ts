@@ -73,6 +73,123 @@ export async function askGemini(prompt: string, history: ChatMessage[] = []): Pr
     }
 }
 
+// Streaming endpoint for token-by-token responses
+const GEMINI_STREAM_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:streamGenerateContent?alt=sse&key=${API_KEY}`;
+
+/**
+ * Stream a response from Gemini token-by-token using XHR (React Native compatible).
+ * Uses XMLHttpRequest readyState 3 (LOADING) for incremental reading since
+ * React Native's fetch() does not support ReadableStream on response.body.
+ *
+ * @param onChunk Called with each text delta as it arrives.
+ * @returns The full accumulated response text.
+ */
+export function askGeminiStream(
+    prompt: string,
+    history: ChatMessage[] = [],
+    onChunk: (chunk: string) => void
+): Promise<string> {
+    if (!API_KEY) {
+        const fallback = "⚠️ I need a brain! Please set EXPO_PUBLIC_GEMINI_API_KEY in your .env file.";
+        onChunk(fallback);
+        return Promise.resolve(fallback);
+    }
+
+    const historyContext = history.map(m => `${m.sender === 'user' ? 'User' : 'Assistant'}: ${m.text}`).join('\n');
+
+    const payload = {
+        contents: [{
+            parts: [{
+                text: `${APP_KNOWLEDGE}
+        
+        INSTRUCTIONS:
+        1. Answer based on the Manual above, but you are also capable of normal conversation related to the app and its features.
+        2. Respond in the same language the user uses or prefers (Detect from history if necessary).
+        3. KEEP IT SHORT (2-3 sentences max).
+        4. Use emojis 🌿💎.
+        5. If the user asks about languages, inform them we support English, Mandarin, and Malay.
+        6. STRICT GUARDRAIL: If the question is completely irrelevant to recycling, environmental impact, or this App, politely redirect them back to the topic.
+        
+        CONVERSATION HISTORY:
+        ${historyContext}
+        
+        User Question: ${prompt}`
+            }]
+        }]
+    };
+
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        let lastIndex = 0;
+        let accumulated = "";
+
+        xhr.open("POST", GEMINI_STREAM_URL);
+        xhr.setRequestHeader("Content-Type", "application/json");
+
+        xhr.onreadystatechange = () => {
+            // readyState 3 = LOADING (partial data available)
+            if (xhr.readyState === 3 || xhr.readyState === 4) {
+                const newData = xhr.responseText.substring(lastIndex);
+                lastIndex = xhr.responseText.length;
+
+                if (newData) {
+                    // Parse SSE lines from the new chunk
+                    const lines = newData.split("\n");
+                    for (const line of lines) {
+                        const trimmed = line.trim();
+                        if (!trimmed.startsWith("data: ")) continue;
+
+                        const jsonStr = trimmed.slice(6);
+                        if (jsonStr === "[DONE]") continue;
+
+                        try {
+                            const parsed = JSON.parse(jsonStr);
+                            const textDelta = parsed?.candidates?.[0]?.content?.parts?.[0]?.text;
+                            if (textDelta) {
+                                accumulated += textDelta;
+                                onChunk(textDelta);
+                            }
+                        } catch {
+                            // Partial or malformed JSON line, skip
+                        }
+                    }
+                }
+            }
+
+            // Done
+            if (xhr.readyState === 4) {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    resolve(accumulated || "🤔 I'm not sure what to say.");
+                } else {
+                    console.error("Gemini Stream XHR Error:", xhr.status, xhr.responseText.substring(0, 500));
+                    // Fall back to non-streaming
+                    askGemini(prompt, history)
+                        .then((reply) => { onChunk(reply); resolve(reply); })
+                        .catch(() => {
+                            const msg = "Sorry, I'm having trouble connecting. 📡";
+                            onChunk(msg);
+                            resolve(msg);
+                        });
+                }
+            }
+        };
+
+        xhr.onerror = () => {
+            console.error("XHR stream network error");
+            // Fall back to non-streaming
+            askGemini(prompt, history)
+                .then((reply) => { onChunk(reply); resolve(reply); })
+                .catch(() => {
+                    const msg = "Sorry, I'm having trouble connecting. 📡";
+                    onChunk(msg);
+                    resolve(msg);
+                });
+        };
+
+        xhr.send(JSON.stringify(payload));
+    });
+}
+
 // Using Tavily Search API for real-time web results
 export async function getDailyTip(language: 'en' | 'zh' | 'ms' = 'en'): Promise<{ tip: string; url: string }> {
     if (!TAVILY_KEY) {
