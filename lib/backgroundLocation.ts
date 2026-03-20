@@ -80,7 +80,7 @@ export const startBackgroundLocationTracking = async () => {
 
     if (!isTracking) {
         await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK, {
-            accuracy: Location.Accuracy.Balanced,
+            accuracy: Location.Accuracy.High,
             timeInterval: 5000, // Update every 5 seconds
             distanceInterval: 10, // Or every 10 meters
             showsBackgroundLocationIndicator: true,

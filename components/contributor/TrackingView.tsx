@@ -4,7 +4,7 @@ import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { appleMapStyle } from "../../app/appleMapStyle";
+
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useTheme } from "../../contexts/ThemeContext";
 
@@ -153,7 +153,7 @@ export default function TrackingView({
                 ref={mapRef}
                 style={StyleSheet.absoluteFill}
                 provider={PROVIDER_GOOGLE}
-                customMapStyle={appleMapStyle}
+
                 initialRegion={{
                     latitude: userLocation?.latitude || 3.1390,
                     longitude: userLocation?.longitude || 101.6869,

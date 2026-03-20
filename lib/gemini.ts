@@ -82,12 +82,14 @@ const GEMINI_STREAM_URL = `https://generativelanguage.googleapis.com/v1beta/mode
  * React Native's fetch() does not support ReadableStream on response.body.
  *
  * @param onChunk Called with each text delta as it arrives.
+ * @param modelVersion Optional override for the model to use (for fallback handling)
  * @returns The full accumulated response text.
  */
 export function askGeminiStream(
     prompt: string,
     history: ChatMessage[] = [],
-    onChunk: (chunk: string) => void
+    onChunk: (chunk: string) => void,
+    modelVersion: string = "gemini-2.0-flash"
 ): Promise<string> {
     if (!API_KEY) {
         const fallback = "⚠️ I need a brain! Please set EXPO_PUBLIC_GEMINI_API_KEY in your .env file.";
@@ -96,6 +98,7 @@ export function askGeminiStream(
     }
 
     const historyContext = history.map(m => `${m.sender === 'user' ? 'User' : 'Assistant'}: ${m.text}`).join('\n');
+    const dynamicUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelVersion}:streamGenerateContent?alt=sse&key=${API_KEY}`;
 
     const payload = {
         contents: [{
@@ -123,7 +126,7 @@ export function askGeminiStream(
         let lastIndex = 0;
         let accumulated = "";
 
-        xhr.open("POST", GEMINI_STREAM_URL);
+        xhr.open("POST", dynamicUrl);
         xhr.setRequestHeader("Content-Type", "application/json");
 
         xhr.onreadystatechange = () => {
@@ -132,8 +135,8 @@ export function askGeminiStream(
                 const newData = xhr.responseText.substring(lastIndex);
                 lastIndex = xhr.responseText.length;
 
-                if (newData) {
                     // Parse SSE lines from the new chunk
+                    // We need to handle incomplete chunks where the JSON might be cut off
                     const lines = newData.split("\n");
                     for (const line of lines) {
                         const trimmed = line.trim();
@@ -149,20 +152,36 @@ export function askGeminiStream(
                                 accumulated += textDelta;
                                 onChunk(textDelta);
                             }
-                        } catch {
-                            // Partial or malformed JSON line, skip
+                        } catch (e) {
+                            // Partial or malformed JSON line snippet, skip until we get the whole piece
+                            // Reset lastIndex back so we read this part again when more data arrives
+                            lastIndex -= line.length + 1; 
                         }
                     }
-                }
             }
 
-            // Done
             if (xhr.readyState === 4) {
                 if (xhr.status >= 200 && xhr.status < 300) {
                     resolve(accumulated || "🤔 I'm not sure what to say.");
+                } else if (xhr.status === 429) {
+                     // If we hit rate limit using the primary model, try the secondary model if we haven't already
+                     if (modelVersion === "gemini-2.0-flash") {
+                          console.warn("Gemini 2.0 Flash rate limited, trying Gemini 1.5 Flash...");
+                          
+                          // We reset the stream internally by calling this very function again
+                          // but with the older model (gemini-1.5-flash)
+                          // Note: accumulated context up to now isn't passed down, but that's fine as
+                          // the error triggers before any SSE data is sent.
+                          askGeminiStream(prompt, history, onChunk, "gemini-1.5-flash")
+                              .then(resolve)
+                              .catch(reject);
+                     } else {
+                         // both failed, reject upward to EcoBot.tsx so LocalLLM handles it
+                         reject(new Error("RATE_LIMIT"));
+                     }
                 } else {
                     console.error("Gemini Stream XHR Error:", xhr.status, xhr.responseText.substring(0, 500));
-                    // Fall back to non-streaming
+                    // Fall back to non-streaming if unexpected server error
                     askGemini(prompt, history)
                         .then((reply) => { onChunk(reply); resolve(reply); })
                         .catch(() => {

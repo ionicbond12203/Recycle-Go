@@ -107,7 +107,7 @@ export default function ContributorPage() {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== "granted") return;
-        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
         setLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
       } catch (error) { console.error(error); }
     })();
@@ -539,7 +539,7 @@ export default function ContributorPage() {
           setLoadingUpload(false);
           return;
         }
-        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
         currentLocation = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
         setLocation(currentLocation); // Update state for future use
       } catch (error) {

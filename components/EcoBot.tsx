@@ -3,7 +3,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
-import { askLocalLLM, ensureModelLoaded } from '../lib/localLLM';
+import { ensureModelLoaded, askLocalLLM } from '../lib/localLLM';
+import { askGeminiStream } from '../lib/gemini';
 
 interface Message {
     id: string;
@@ -55,22 +56,25 @@ const ALL_SUGGESTIONS = [
 ];
 
 // Memoized Header to prevent flickering during streaming re-renders
-const ChatHeader = React.memo(({ isModelLoading, colors }: { isModelLoading: boolean, colors: any }) => (
+const ChatHeader = React.memo(({ isModelLoading, colors, onClearChat }: { isModelLoading: boolean, colors: any, onClearChat: () => void }) => (
     <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <View style={[styles.botIcon, { backgroundColor: colors.backgroundSecondary }]}>
             <Text style={{ fontSize: 24 }}>🤖</Text>
         </View>
-        <View>
+        <View style={{ flex: 1 }}>
             <Text style={[styles.title, { color: colors.text }]}>Eco-Assistant</Text>
             {isModelLoading ? (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <ActivityIndicator size="small" color={colors.textSecondary} />
-                    <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Loading model...</Text>
+                    <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Loading local fallback...</Text>
                 </View>
             ) : (
-                <Text style={[styles.subtitle, { color: colors.textSecondary }]}>On-device • Offline</Text>
+                <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Online • Gemini (Local Fallback Ready)</Text>
             )}
         </View>
+        <TouchableOpacity style={{ padding: 8 }} onPress={onClearChat}>
+            <Ionicons name="trash-outline" size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
     </View>
 ));
 
@@ -88,33 +92,7 @@ const MessageBubble = React.memo(({ item, colors }: { item: Message, colors: any
                 item.sender === 'user' ? [styles.userText, { color: colors.textInverse }] : [styles.botText, { color: colors.text }]
             ]}>
                 {item.sender === 'bot' ? (
-                    item.text.split(/(\s+)/).map((part: string, index: number) => {
-                        const urlRegex = /(https?:\/\/[^\s]+)/g;
-                        const emailRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g;
-
-                        if (urlRegex.test(part)) {
-                            return (
-                                <Text
-                                    key={index}
-                                    style={{ color: colors.info, textDecorationLine: 'underline' }}
-                                    onPress={() => Linking.openURL(part)}
-                                >
-                                    {part}
-                                </Text>
-                            );
-                        } else if (emailRegex.test(part)) {
-                            return (
-                                <Text
-                                    key={index}
-                                    style={{ color: colors.info, textDecorationLine: 'underline' }}
-                                    onPress={() => Linking.openURL(`mailto:${part}`)}
-                                >
-                                    {part}
-                                </Text>
-                            );
-                        }
-                        return <Text key={index}>{part}</Text>;
-                    })
+                    item.text
                 ) : (
                     item.text
                 )}
@@ -193,7 +171,7 @@ export default function EcoBot({ visible, onClose }: EcoBotProps) {
         let lastUpdate = Date.now();
 
         try {
-            await askLocalLLM(textToSend, messages, (token) => {
+            await askGeminiStream(textToSend, messages, (token) => {
                 streamingTextRef.current += token;
 
                 const now = Date.now();
@@ -221,15 +199,60 @@ export default function EcoBot({ visible, onClose }: EcoBotProps) {
                         : m
                 )
             );
-        } catch (error) {
-            console.error('Chat error:', error);
-            setMessages(prev =>
-                prev.map(m =>
-                    m.id === botMsgId
-                        ? { ...m, text: 'Sorry, I\'m having trouble. The model may not be loaded. 🤖' }
-                        : m
-                )
-            );
+        } catch (error: any) {
+            if (error.message === "RATE_LIMIT") {
+                console.warn('Gemini rate limit hit, falling back to local LLM...');
+                streamingTextRef.current = ""; // Reset for local LLM
+                
+                try {
+                     await askLocalLLM(textToSend, messages, (token) => {
+                        streamingTextRef.current += token;
+
+                        const now = Date.now();
+                        if (now - lastUpdate > 100) {
+                            setMessages(prev =>
+                                prev.map(m =>
+                                    m.id === botMsgId
+                                        ? { ...m, text: streamingTextRef.current.replace('[CONTACT_ACTION]', '').trim() }
+                                        : m
+                                )
+                            );
+                            lastUpdate = now;
+                        }
+                    });
+
+                    const finalProcessed = streamingTextRef.current;
+                    const hasAction = finalProcessed.includes('[CONTACT_ACTION]');
+                    const cleanFinal = finalProcessed.replace('[CONTACT_ACTION]', '').trim();
+
+                    setMessages(prev =>
+                        prev.map(m =>
+                            m.id === botMsgId
+                                ? { ...m, text: cleanFinal, showContactButtons: hasAction }
+                                : m
+                        )
+                    );
+                } catch (localError) {
+                    console.error('Local LLM Chat error:', localError);
+                    setMessages(prev =>
+                        prev.map(m =>
+                            m.id === botMsgId
+                                ? { ...m, text: 'Sorry, I\'m having trouble. Both online and local models failed. 🤖' }
+                                : m
+                        )
+                    );
+                }
+
+            } else {
+                console.error('Chat error:', error);
+                setMessages(prev =>
+                    prev.map(m =>
+                        m.id === botMsgId
+                            ? { ...m, text: 'Sorry, I\'m having trouble connecting to the assistant. 🤖' }
+                            : m
+                    )
+                );
+            }
         } finally {
             setIsStreaming(false);
         }
@@ -239,11 +262,15 @@ export default function EcoBot({ visible, onClose }: EcoBotProps) {
         <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
             <View style={[styles.container, { paddingTop: Platform.OS === 'android' ? 20 : 0, backgroundColor: colors.backgroundSecondary }]}>
 
-                <ChatHeader isModelLoading={isModelLoading} colors={colors} />
+                <ChatHeader
+                    isModelLoading={isModelLoading}
+                    colors={colors}
+                    onClearChat={() => setMessages([{ id: Date.now().toString(), text: "Hi! I'm EcoBot 🤖. Not sure if something is recyclable? Ask me!", sender: 'bot' }])}
+                />
 
                 <KeyboardAvoidingView
                     style={{ flex: 1 }}
-                    behavior={Platform.OS === "ios" ? "padding" : "height"}
+                    behavior={Platform.OS === "ios" ? "padding" : undefined}
                 >
                     <FlatList
                         ref={flatListRef}
