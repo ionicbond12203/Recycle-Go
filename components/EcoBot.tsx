@@ -3,8 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
-import { ensureModelLoaded, askLocalLLM } from '../lib/localLLM';
-import { askGeminiStream } from '../lib/gemini';
+import { askGeminiStream, askEcoAgent } from '../lib/gemini';
 
 interface Message {
     id: string;
@@ -16,6 +15,11 @@ interface Message {
 interface EcoBotProps {
     visible: boolean;
     onClose: () => void;
+    onScan?: () => void;
+    onOpenCart?: () => void;
+    onViewProfile?: () => void;
+    onTrack?: () => void;
+    userStats?: { points: number, savedCO2: string, recycled: string };
 }
 
 const styles = StyleSheet.create({
@@ -56,21 +60,14 @@ const ALL_SUGGESTIONS = [
 ];
 
 // Memoized Header to prevent flickering during streaming re-renders
-const ChatHeader = React.memo(({ isModelLoading, colors, onClearChat }: { isModelLoading: boolean, colors: any, onClearChat: () => void }) => (
+const ChatHeader = React.memo(({ colors, onClearChat }: { colors: any, onClearChat: () => void }) => (
     <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <View style={[styles.botIcon, { backgroundColor: colors.backgroundSecondary }]}>
             <Text style={{ fontSize: 24 }}>🤖</Text>
         </View>
         <View style={{ flex: 1 }}>
             <Text style={[styles.title, { color: colors.text }]}>Eco-Assistant</Text>
-            {isModelLoading ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <ActivityIndicator size="small" color={colors.textSecondary} />
-                    <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Loading local fallback...</Text>
-                </View>
-            ) : (
-                <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Online • Gemini (Local Fallback Ready)</Text>
-            )}
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Online • Gemini</Text>
         </View>
         <TouchableOpacity style={{ padding: 8 }} onPress={onClearChat}>
             <Ionicons name="trash-outline" size={20} color={colors.textSecondary} />
@@ -91,11 +88,7 @@ const MessageBubble = React.memo(({ item, colors }: { item: Message, colors: any
                 styles.msgText,
                 item.sender === 'user' ? [styles.userText, { color: colors.textInverse }] : [styles.botText, { color: colors.text }]
             ]}>
-                {item.sender === 'bot' ? (
-                    item.text
-                ) : (
-                    item.text
-                )}
+                {item.text}
             </Text>
         </View>
 
@@ -120,7 +113,7 @@ const MessageBubble = React.memo(({ item, colors }: { item: Message, colors: any
     </View>
 ));
 
-export default function EcoBot({ visible, onClose }: EcoBotProps) {
+export default function EcoBot({ visible, onClose, onScan, onOpenCart, onViewProfile, onTrack, userStats }: EcoBotProps) {
     const { colors } = useTheme();
     const insets = useSafeAreaInsets();
     const [messages, setMessages] = useState<Message[]>([
@@ -129,28 +122,14 @@ export default function EcoBot({ visible, onClose }: EcoBotProps) {
     const [inputText, setInputText] = useState("");
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const [isStreaming, setIsStreaming] = useState(false);
-    const [isModelLoading, setIsModelLoading] = useState(false);
     const flatListRef = useRef<FlatList>(null);
     const streamingTextRef = useRef("");
 
-    // Preload model when modal opens
+    // Setup suggestions when modal opens
     useEffect(() => {
         if (visible) {
             const shuffled = [...ALL_SUGGESTIONS].sort(() => 0.5 - Math.random());
             setSuggestions(shuffled.slice(0, 3));
-
-            setIsModelLoading(true);
-            ensureModelLoaded()
-                .then(() => setIsModelLoading(false))
-                .catch((err) => {
-                    console.error('Model preload failed:', err);
-                    setIsModelLoading(false);
-                    setMessages(prev => [...prev, {
-                        id: 'error-' + Date.now(),
-                        text: '⚠️ Eco-Assistant failed to initialize. Please check if you have enough storage space (650MB required) and restart the app.',
-                        sender: 'bot'
-                    }]);
-                });
         }
     }, [visible]);
 
@@ -171,26 +150,39 @@ export default function EcoBot({ visible, onClose }: EcoBotProps) {
         let lastUpdate = Date.now();
 
         try {
-            await askGeminiStream(textToSend, messages, (token) => {
-                streamingTextRef.current += token;
+            const finalReply = await askEcoAgent(textToSend, messages, userStats);
+            streamingTextRef.current = finalReply;
 
-                const now = Date.now();
-                if (now - lastUpdate > 100) {
-                    setMessages(prev =>
-                        prev.map(m =>
-                            m.id === botMsgId
-                                ? { ...m, text: streamingTextRef.current.replace('[CONTACT_ACTION]', '').trim() }
-                                : m
-                        )
-                    );
-                    lastUpdate = now;
-                }
-            });
+            setMessages(prev =>
+                prev.map(m =>
+                    m.id === botMsgId
+                        ? { ...m, text: finalReply.replace('[CONTACT_ACTION]', '').trim() }
+                        : m
+                )
+            );
 
             // Final state sync for completion & action detection
             const finalProcessed = streamingTextRef.current;
             const hasAction = finalProcessed.includes('[CONTACT_ACTION]');
-            const cleanFinal = finalProcessed.replace('[CONTACT_ACTION]', '').trim();
+            
+            // Handle Navigation Triggers
+            if (finalProcessed.includes('[ACTION_SCAN]') && onScan) {
+                setTimeout(() => onScan(), 800);
+            } else if (finalProcessed.includes('[ACTION_OPEN_CART]') && onOpenCart) {
+                setTimeout(() => onOpenCart(), 800);
+            } else if (finalProcessed.includes('[ACTION_VIEW_PROFILE]') && onViewProfile) {
+                setTimeout(() => onViewProfile(), 800);
+            } else if (finalProcessed.includes('[ACTION_TRACK_DRIVER]') && onTrack) {
+                setTimeout(() => onTrack(), 800);
+            }
+
+            const cleanFinal = finalProcessed
+                .replace('[CONTACT_ACTION]', '')
+                .replace('[ACTION_SCAN]', '')
+                .replace('[ACTION_OPEN_CART]', '')
+                .replace('[ACTION_VIEW_PROFILE]', '')
+                .replace('[ACTION_TRACK_DRIVER]', '')
+                .trim();
 
             setMessages(prev =>
                 prev.map(m =>
@@ -200,59 +192,14 @@ export default function EcoBot({ visible, onClose }: EcoBotProps) {
                 )
             );
         } catch (error: any) {
-            if (error.message === "RATE_LIMIT") {
-                console.warn('Gemini rate limit hit, falling back to local LLM...');
-                streamingTextRef.current = ""; // Reset for local LLM
-                
-                try {
-                     await askLocalLLM(textToSend, messages, (token) => {
-                        streamingTextRef.current += token;
-
-                        const now = Date.now();
-                        if (now - lastUpdate > 100) {
-                            setMessages(prev =>
-                                prev.map(m =>
-                                    m.id === botMsgId
-                                        ? { ...m, text: streamingTextRef.current.replace('[CONTACT_ACTION]', '').trim() }
-                                        : m
-                                )
-                            );
-                            lastUpdate = now;
-                        }
-                    });
-
-                    const finalProcessed = streamingTextRef.current;
-                    const hasAction = finalProcessed.includes('[CONTACT_ACTION]');
-                    const cleanFinal = finalProcessed.replace('[CONTACT_ACTION]', '').trim();
-
-                    setMessages(prev =>
-                        prev.map(m =>
-                            m.id === botMsgId
-                                ? { ...m, text: cleanFinal, showContactButtons: hasAction }
-                                : m
-                        )
-                    );
-                } catch (localError) {
-                    console.error('Local LLM Chat error:', localError);
-                    setMessages(prev =>
-                        prev.map(m =>
-                            m.id === botMsgId
-                                ? { ...m, text: 'Sorry, I\'m having trouble. Both online and local models failed. 🤖' }
-                                : m
-                        )
-                    );
-                }
-
-            } else {
-                console.error('Chat error:', error);
-                setMessages(prev =>
-                    prev.map(m =>
-                        m.id === botMsgId
-                            ? { ...m, text: 'Sorry, I\'m having trouble connecting to the assistant. 🤖' }
-                            : m
-                    )
-                );
-            }
+            console.error('Chat error:', error);
+            setMessages(prev =>
+                prev.map(m =>
+                    m.id === botMsgId
+                        ? { ...m, text: 'Sorry, I\'m having trouble connecting to the assistant. 🤖' }
+                        : m
+                )
+            );
         } finally {
             setIsStreaming(false);
         }
@@ -263,7 +210,6 @@ export default function EcoBot({ visible, onClose }: EcoBotProps) {
             <View style={[styles.container, { paddingTop: Platform.OS === 'android' ? 20 : 0, backgroundColor: colors.backgroundSecondary }]}>
 
                 <ChatHeader
-                    isModelLoading={isModelLoading}
                     colors={colors}
                     onClearChat={() => setMessages([{ id: Date.now().toString(), text: "Hi! I'm EcoBot 🤖. Not sure if something is recyclable? Ask me!", sender: 'bot' }])}
                 />

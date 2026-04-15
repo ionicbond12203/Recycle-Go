@@ -19,6 +19,7 @@ export default function EarningsScreen() {
   const [balance, setBalance] = useState(0);
   const [totalWeight, setTotalWeight] = useState(0);
   const [history, setHistory] = useState<Transaction[]>([]);
+  const [showAllHistory, setShowAllHistory] = useState(false);
 
   // Theme Configuration
   const THEME = {
@@ -77,7 +78,7 @@ export default function EarningsScreen() {
         .eq('collector_id', user.id)
         .eq('status', 'confirmed')
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(50);
 
       if (data) setHistory(data);
     };
@@ -180,16 +181,16 @@ export default function EarningsScreen() {
           </View>
           <View style={[styles.statBox, { backgroundColor: currentTheme.cardBg, borderColor: currentTheme.border }]}>
             <MaterialCommunityIcons name="lightning-bolt" size={22} color={currentTheme.accent} style={{ marginBottom: 8 }} />
-            <Text style={[styles.statValue, { color: currentTheme.accent }]}>98%</Text>
-            <Text style={[styles.statLabel, { color: currentTheme.textSecondary }]}>Green Efficiency</Text>
+            <Text style={[styles.statValue, { color: currentTheme.accent }]}>{history.length}</Text>
+            <Text style={[styles.statLabel, { color: currentTheme.textSecondary }]}>Collections</Text>
           </View>
         </View>
 
         <View style={styles.activitySection}>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: currentTheme.textPrimary }]}>Collection History</Text>
-            <TouchableOpacity>
-              <Text style={[styles.viewAllText, { color: currentTheme.accent }]}>View All</Text>
+            <TouchableOpacity onPress={() => setShowAllHistory(prev => !prev)}>
+              <Text style={[styles.viewAllText, { color: currentTheme.accent }]}>{showAllHistory ? 'Show Less' : 'View All'}</Text>
             </TouchableOpacity>
           </View>
 
@@ -217,7 +218,7 @@ export default function EarningsScreen() {
             </View>
           ) : (
             <View style={styles.listContainer}>
-              {history.map((item) => (
+              {(showAllHistory ? history : history.slice(0, 5)).map((item) => (
                 <View key={item.id} style={[styles.historyItem, { backgroundColor: currentTheme.cardBg, borderColor: currentTheme.border }]}>
                   <View style={[styles.iconBox, { backgroundColor: currentTheme.iconBg }]}>
                     <MaterialCommunityIcons name="check-circle-outline" size={24} color={currentTheme.accent} />

@@ -89,7 +89,7 @@ export function askGeminiStream(
     prompt: string,
     history: ChatMessage[] = [],
     onChunk: (chunk: string) => void,
-    modelVersion: string = "gemini-2.0-flash"
+    modelVersion: string = "gemini-flash-latest"
 ): Promise<string> {
     if (!API_KEY) {
         const fallback = "⚠️ I need a brain! Please set EXPO_PUBLIC_GEMINI_API_KEY in your .env file.";
@@ -135,50 +135,50 @@ export function askGeminiStream(
                 const newData = xhr.responseText.substring(lastIndex);
                 lastIndex = xhr.responseText.length;
 
-                    // Parse SSE lines from the new chunk
-                    // We need to handle incomplete chunks where the JSON might be cut off
-                    const lines = newData.split("\n");
-                    for (const line of lines) {
-                        const trimmed = line.trim();
-                        if (!trimmed.startsWith("data: ")) continue;
+                // Parse SSE lines from the new chunk
+                // We need to handle incomplete chunks where the JSON might be cut off
+                const lines = newData.split("\n");
+                for (const line of lines) {
+                    const trimmed = line.trim();
+                    if (!trimmed.startsWith("data: ")) continue;
 
-                        const jsonStr = trimmed.slice(6);
-                        if (jsonStr === "[DONE]") continue;
+                    const jsonStr = trimmed.slice(6);
+                    if (jsonStr === "[DONE]") continue;
 
-                        try {
-                            const parsed = JSON.parse(jsonStr);
-                            const textDelta = parsed?.candidates?.[0]?.content?.parts?.[0]?.text;
-                            if (textDelta) {
-                                accumulated += textDelta;
-                                onChunk(textDelta);
-                            }
-                        } catch (e) {
-                            // Partial or malformed JSON line snippet, skip until we get the whole piece
-                            // Reset lastIndex back so we read this part again when more data arrives
-                            lastIndex -= line.length + 1; 
+                    try {
+                        const parsed = JSON.parse(jsonStr);
+                        const textDelta = parsed?.candidates?.[0]?.content?.parts?.[0]?.text;
+                        if (textDelta) {
+                            accumulated += textDelta;
+                            onChunk(textDelta);
                         }
+                    } catch (e) {
+                        // Partial or malformed JSON line snippet, skip until we get the whole piece
+                        // Reset lastIndex back so we read this part again when more data arrives
+                        lastIndex -= line.length + 1;
                     }
+                }
             }
 
             if (xhr.readyState === 4) {
                 if (xhr.status >= 200 && xhr.status < 300) {
                     resolve(accumulated || "🤔 I'm not sure what to say.");
                 } else if (xhr.status === 429) {
-                     // If we hit rate limit using the primary model, try the secondary model if we haven't already
-                     if (modelVersion === "gemini-2.0-flash") {
-                          console.warn("Gemini 2.0 Flash rate limited, trying Gemini 1.5 Flash...");
-                          
-                          // We reset the stream internally by calling this very function again
-                          // but with the older model (gemini-1.5-flash)
-                          // Note: accumulated context up to now isn't passed down, but that's fine as
-                          // the error triggers before any SSE data is sent.
-                          askGeminiStream(prompt, history, onChunk, "gemini-1.5-flash")
-                              .then(resolve)
-                              .catch(reject);
-                     } else {
-                         // both failed, reject upward to EcoBot.tsx so LocalLLM handles it
-                         reject(new Error("RATE_LIMIT"));
-                     }
+                    // If we hit rate limit using the primary model, try the secondary model if we haven't already
+                    if (modelVersion === "gemini-flash-latest") {
+                        console.warn("gemini-flash-latest rate limited, trying fallback...");
+
+                        // We reset the stream internally by calling this very function again
+                        // but with the older model
+                        // Note: accumulated context up to now isn't passed down, but that's fine as
+                        // the error triggers before any SSE data is sent.
+                        askGeminiStream(prompt, history, onChunk, "gemini-flash-lite-latest")
+                            .then(resolve)
+                            .catch(reject);
+                    } else {
+                        // both failed, reject upward to EcoBot.tsx so LocalLLM handles it
+                        reject(new Error("RATE_LIMIT"));
+                    }
                 } else {
                     console.error("Gemini Stream XHR Error:", xhr.status, xhr.responseText.substring(0, 500));
                     // Fall back to non-streaming if unexpected server error
@@ -230,11 +230,11 @@ export async function getDailyTip(language: 'en' | 'zh' | 'ms' = 'en'): Promise<
         },
         zh: {
             queries: [
-                "马来西亚 再循环 统考 环保教育",
-                "马来西亚 绿色经济 政策  recycling",
-                "马来西亚 垃圾分类 成功案例",
-                "马来西亚 环境保护 经济议题",
-                "马来西亚 循环经济 资讯"
+                "Malaysia recycling UEC environmental education",
+                "Malaysia green economy policy recycling",
+                "Malaysia waste sorting success stories",
+                "Malaysia environmental protection economic issues",
+                "Malaysia circular economy info"
             ],
             domains: ["sinchew.com.my", "orientaldaily.com.my", "chinapress.com.my", "enanyang.my", "bernama.com", "berita.rtm.gov.my"]
         },
@@ -328,7 +328,7 @@ export async function getDailyTip(language: 'en' | 'zh' | 'ms' = 'en'): Promise<
 
         const defaultTips: Record<string, string> = {
             en: "Reduce, Reuse, Recycle! Every item counts in building a sustainable Malaysia. 🌿",
-            zh: "减少、再利用、回收！每一件物品都在为建设可持续发展的马来西亚做贡献。🌿",
+            zh: "Reduce, Reuse, Recycle! Every item counts in building a sustainable Malaysia. 🌿",
             ms: "Kurangkan, Guna Semula, Kitar Semula! Setiap item penting dalam membina Malaysia yang lestari. 🌿"
         };
         return { tip: defaultTips[language] || defaultTips.en, url: "https://www.google.com/search?q=recycling+malaysia" };
@@ -336,9 +336,108 @@ export async function getDailyTip(language: 'en' | 'zh' | 'ms' = 'en'): Promise<
         console.error("Tavily Error:", e);
         const fallbackTips: Record<string, string> = {
             en: "Keep our planet clean! 🌍",
-            zh: "保持我们的地球清洁！🌍",
+            zh: "Keep our planet clean! 🌍",
             ms: "Jaga kebersihan bumi kita! 🌍"
         };
         return { tip: fallbackTips[language] || fallbackTips.en, url: "https://www.google.com/search?q=recycling+tips" };
+    }
+}
+
+export async function askEcoAgent(prompt: string, history: ChatMessage[] = [], userStats?: { points: number, savedCO2: string, recycled: string }): Promise<string> {
+    const API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY || "";
+    const contents = history.map(m => ({
+        role: m.sender === 'user' ? 'user' : 'model',
+        parts: [{ text: m.text }]
+    }));
+    contents.push({ role: "user", parts: [{ text: prompt }] });
+
+    const systemText = `You are the Recycle-Go smart assistant. If the user's instructions contain clear business intent (checkout, check stats, rush order, scan), be sure to call the corresponding function, do not be verbose.
+The current user's real environmental data is as follows (if the user asks, tell them in a gentle encouraging tone with emojis, do not call any tools to answer directly):
+- Eco Points: ${userStats?.points || 0}
+- Total CO2 Saved: ${userStats?.savedCO2 || '0kg'}
+- Total Recycled Count: ${userStats?.recycled || '0'} times`;
+
+    const payload = {
+        systemInstruction: { parts: [{ text: systemText }] },
+        contents: contents,
+        tools: [{
+            functionDeclarations: [
+                {
+                    name: "schedulePickup",
+                    description: "Call when the user explicitly states they have recyclables at home to be collected or want to request a pickup. Must extract the type of material they want to recycle.",
+                    parameters: {
+                        type: "OBJECT",
+                        properties: {
+                            materialType: { type: "STRING", description: "Example: plastic bottles, cardboard boxes, etc." }
+                        },
+                        required: ["materialType"]
+                    }
+                },
+                {
+                    name: "openScanner",
+                    description: "Call when the user asks to scan, take an image to identify an item, or determines if it's recyclable. Used to open the camera for the user.",
+                    parameters: { type: "OBJECT", properties: {} }
+                },
+                {
+                    name: "openCart",
+                    description: "Call when the user asks to enter the cart, view the list, checkout, or go to the dispatch page.",
+                    parameters: { type: "OBJECT", properties: {} }
+                },
+                {
+                    name: "viewProfile",
+                    description: "Call when the user asks to view their history, navigate to the profile details page, or view account settings.",
+                    parameters: { type: "OBJECT", properties: {} }
+                },
+                {
+                    name: "trackDriver",
+                    description: "Call when the user asks to track the driver's location, view the map, rush an order, or contact the driver.",
+                    parameters: { type: "OBJECT", properties: {} }
+                }
+            ]
+        }]
+    };
+
+    try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`, {
+            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        
+        // If API returns an error (e.g., incorrect model name, insufficient quota), display it directly on the screen
+        if (!response.ok) {
+            console.error("API returned error:", data);
+            return `⚠️ API encountered an error: ${data.error?.message || JSON.stringify(data)}`;
+        }
+
+        const candidate = data?.candidates?.[0];
+
+        if (candidate?.content?.parts?.[0]?.functionCall) {
+            const fnCall = candidate.content.parts[0].functionCall;
+            if (fnCall.name === "schedulePickup") {
+                const material = fnCall.args.materialType;
+                console.log(`\n\n🎯 [AGENT FUNCTION INTERCEPT]: Intercepted business intent! Extracted material type -> ${material}\n\n`);
+                return `✅ Got it, I have directly triggered the dispatch interceptor program and called a driver to collect [${material}]!`;
+            }
+            if (fnCall.name === "openScanner") {
+                console.log(`\n\n🎯 [AGENT FUNCTION INTERCEPT]: Intercepted auto-scan intent!\n\n`);
+                return `[ACTION_SCAN]✅ No problem, opening the AI scan camera for you! Please point it at your item 📸`;
+            }
+            if (fnCall.name === "openCart") {
+                console.log(`\n\n🎯 [AGENT FUNCTION INTERCEPT]: Intercepted open cart intent!\n\n`);
+                return `[ACTION_OPEN_CART]🛒 Taking you to the checkout list page...`;
+            }
+            if (fnCall.name === "viewProfile") {
+                console.log(`\n\n🎯 [AGENT FUNCTION INTERCEPT]: Intercepted view profile intent!\n\n`);
+                return `[ACTION_VIEW_PROFILE]📊 Opening your personal eco-stats dashboard...`;
+            }
+            if (fnCall.name === "trackDriver") {
+                console.log(`\n\n🎯 [AGENT FUNCTION INTERCEPT]: Intercepted track driver intent!\n\n`);
+                return `[ACTION_TRACK_DRIVER]🚚 Taking you to the real-time map to track the driver's location!`;
+            }
+        }
+        return candidate?.content?.parts?.[0]?.text || "🤔 I'm not sure what to say.";
+    } catch (e) {
+        console.error("Agent crashed:", e);
+        return "Sorry, my smart brain just short-circuited 📡";
     }
 }

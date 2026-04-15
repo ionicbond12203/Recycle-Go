@@ -472,6 +472,15 @@ export default function CollectorHomeScreen() {
           Alert.alert("Success!", "Contributor confirmed.");
 
           handleFinishJob(payload.new as Transaction); // Auto trigger finish
+        } else if (payload.new.status === 'rejected') {
+          // Contributor disputed the weight — let collector re-enter
+          setWaitingForConfirmation(false);
+          setCurrentTransactionId(null);
+          // Keep modal open so collector can re-submit a corrected weight
+          Alert.alert(
+            "Weight Disputed",
+            "The contributor rejected the weight. Please re-weigh and resubmit."
+          );
         }
       })
       .subscribe();
@@ -711,12 +720,26 @@ export default function CollectorHomeScreen() {
           contributorAvatar = profile.avatar_url;
         }
 
+        // Fetch real waste types from scanned_items
+        let wasteType: string[] = [];
+        const { data: scannedItems } = await supabase
+          .from('scanned_items')
+          .select('material')
+          .eq('contributor_id', c.id)
+          .is('transaction_id', null) // only pending (unlinked) items
+          .limit(10);
+        if (scannedItems && scannedItems.length > 0) {
+          // Deduplicate materials, show up to 3
+          const uniqueMaterials = [...new Set(scannedItems.map((i: any) => i.material).filter(Boolean))];
+          wasteType = uniqueMaterials.slice(0, 3) as string[];
+        }
+
         processedJobs.push({
           id: c.id,
           latitude: c.latitude,
           longitude: c.longitude,
           address: "Tap to view address",
-          wasteType: ['Plastic', 'Paper'], // Placeholder until we fetch real items
+          wasteType,
           status: 'pending',
           distanceLabel: dist > 1000 ? `${(dist / 1000).toFixed(1)} km` : `${Math.round(dist)} m`,
           rawDistance: dist,
@@ -1086,15 +1109,12 @@ export default function CollectorHomeScreen() {
       handleAcceptJob(nextJob);
     } else {
       Alert.alert("All Done!", "Route completed.");
+      // Clear route state immediately so the green line disappears from the map
+      setActiveJob(null);
+      setAvailableJobs([]);
+      setRouteInfo(null);
+      stopLocationTracking();
       setAppState('completed'); // Shows the "RM 5" screen
-      // delay reset
-      setTimeout(() => {
-        setActiveJob(null);
-        setAvailableJobs([]);
-        setRouteInfo(null);
-        setLastTransaction(null);
-        setAppState('idle');
-      }, 5000); // 5 seconds for success screen
     }
   };
   const handleMapTypeToggle = () => setMapType((prev: MapType) => (prev === 'standard' ? 'satellite' : prev === 'satellite' ? 'hybrid' : 'standard'));
@@ -1418,7 +1438,7 @@ export default function CollectorHomeScreen() {
           <Text style={{ color: colors.textSecondary, textAlign: 'center', marginBottom: 20 }}>
             You saved ~{lastTransaction ? (lastTransaction.weight_kg * GameMechanics.POINTS.CO2_PER_KG).toFixed(1) : 2.5} kg of CO2 in this trip.
           </Text>
-          <TouchableOpacity style={[styles.doneButton, { backgroundColor: colors.primary }]} onPress={() => { setLastTransaction(null); setAppState('idle'); }}><Text style={styles.doneButtonText}>Back to Dashboard</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.doneButton, { backgroundColor: colors.primary }]} onPress={() => { setActiveJob(null); setLastTransaction(null); setAppState('idle'); }}><Text style={styles.doneButtonText}>Back to Dashboard</Text></TouchableOpacity>
         </View>
       </SafeAreaView>
     </Modal>

@@ -583,6 +583,35 @@ export default function ContributorPage() {
     }
   };
 
+  const handleCancelRequest = () => {
+    Alert.alert(
+      "Cancel Request",
+      "Are you sure you want to cancel your pickup request?",
+      [
+        { text: "No", style: "cancel" },
+        {
+          text: "Yes, Cancel",
+          style: "destructive",
+          onPress: async () => {
+            if (!deviceId) return;
+            try {
+              await supabase
+                .from('contributors')
+                .update({ status: 'idle', collector_id: null })
+                .eq('id', deviceId);
+              setIsActive(false);
+              clearTrackingState();
+              setCurrentScreen('home');
+            } catch (e: any) {
+              console.error("Cancel failed:", e);
+              Alert.alert("Error", "Could not cancel the request.");
+            }
+          }
+        }
+      ]
+    );
+  };
+
   // New Verification Confirm Logic
   const handleVerifyTransaction = async () => {
     if (!user || !pendingTransaction) return;
@@ -686,7 +715,17 @@ export default function ContributorPage() {
 
   const handleDeclineTransaction = async () => {
     if (!pendingTransaction) return;
-    // Optionally update status to 'rejected'
+    try {
+      const { error } = await supabase
+        .from('transactions')
+        .update({ status: 'rejected' })
+        .eq('id', pendingTransaction.id);
+      if (error) throw error;
+    } catch (e: any) {
+      console.error('Failed to reject transaction:', e);
+      Alert.alert(t('actions.error'), 'Could not decline the transaction. Please try again.');
+      return;
+    }
     setPendingTransaction(null);
   }
 
@@ -885,6 +924,7 @@ export default function ContributorPage() {
           onBack={() => setCurrentScreen('cart')}
           setRouteInfo={setRouteInfo}
           onConfirmCollection={cart.length > 0 ? handleConfirmCollection : undefined}
+          onCancelRequest={handleCancelRequest}
           collectorName={collectorName || undefined}
           collectorAvatar={collectorAvatar || undefined}
         />
@@ -914,7 +954,28 @@ export default function ContributorPage() {
         onSendMessage={handleSendMessage}
       />
 
-      <EcoBot visible={isEcoBotOpen} onClose={() => setIsEcoBotOpen(false)} />
+      <EcoBot 
+        visible={isEcoBotOpen} 
+        onClose={() => setIsEcoBotOpen(false)} 
+        userStats={globalStats}
+        onScan={() => {
+            setIsEcoBotOpen(false);
+            pickImage();
+        }}
+        onOpenCart={() => {
+            setIsEcoBotOpen(false);
+            setCurrentScreen('cart');
+        }}
+        onViewProfile={() => {
+            setIsEcoBotOpen(false);
+            setCurrentScreen('profile');
+        }}
+        onTrack={() => {
+            // Only toggle to tracking if they actually have a request pending or active
+            setIsEcoBotOpen(false);
+            setCurrentScreen('tracking');
+        }}
+      />
 
       <ManualItemEntryModal
         visible={isManualModalOpen}
