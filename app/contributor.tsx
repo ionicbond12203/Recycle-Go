@@ -194,7 +194,7 @@ export default function ContributorPage() {
           console.log('Realtime collector location:', newLoc.latitude, newLoc.longitude);
         }
       })
-      .subscribe((status) => {
+      .subscribe((status: string) => {
         console.log('Collector location subscription status:', status);
       });
 
@@ -211,7 +211,7 @@ export default function ContributorPage() {
   useEffect(() => {
     if (currentCollectorId) {
       supabase.from('profiles').select('contact_number, full_name, avatar_url').eq('id', currentCollectorId).single()
-        .then(({ data }) => {
+        .then(({ data }: { data: any }) => {
           if (data?.contact_number) setCollectorPhone(data.contact_number);
           setCollectorName(data?.full_name || "Assigned Collector");
           setCollectorAvatar(data?.avatar_url || null);
@@ -251,7 +251,7 @@ export default function ContributorPage() {
 
     // 2. Realtime Listener
     const channel = supabase.channel(`verifications-${user.id}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'transactions', filter: `contributor_id=eq.${user.id}` }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'transactions', filter: `contributor_id=eq.${user.id}` }, (payload: any) => {
         if (payload.new.status === 'pending') {
           setPendingTransaction(payload.new);
         }
@@ -281,7 +281,7 @@ export default function ContributorPage() {
     fetchHistory();
 
     const channel = supabase.channel('chat-room-contributor')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload: any) => {
         const newMsg = payload.new as ChatMessage;
 
         // Check if the message is relevant to us
@@ -289,9 +289,9 @@ export default function ContributorPage() {
         const isFromMe = newMsg.sender_id === deviceId;
 
         if (isForMe || isFromMe) {
-          setMessages(prev => {
+          setMessages((prev: ChatMessage[]) => {
             // Avoid duplicates
-            if (prev.some(m => m.id === newMsg.id)) return prev;
+            if (prev.some((m: ChatMessage) => m.id === newMsg.id)) return prev;
             return [...prev, newMsg];
           });
 
@@ -327,7 +327,7 @@ export default function ContributorPage() {
         schema: 'public',
         table: 'contributors',
         filter: `id=eq.${deviceId}`
-      }, (payload) => {
+      }, (payload: any) => {
         const newStatus = payload.new.status;
         const assignedCollectorId = payload.new.collector_id;
 
@@ -414,7 +414,7 @@ export default function ContributorPage() {
       material: scannedItem.material,
       co2: scannedItem.co2Value || 0 // Store raw CO2
     };
-    setCart(prev => [...prev, newItem]);
+    setCart((prev: CartItem[]) => [...prev, newItem]);
 
     // 2. Save to Supabase
     if (deviceId) {
@@ -496,7 +496,7 @@ export default function ContributorPage() {
         material: manualItem.material,
         co2: manualItem.co2
       };
-      setCart(prev => [...prev, newItem]);
+      setCart((prev: CartItem[]) => [...prev, newItem]);
 
       // 2. Save to Supabase (without image upload for now, using placeholder)
       const { error } = await supabase.from('scanned_items').insert({
@@ -589,7 +589,7 @@ export default function ContributorPage() {
 
     try {
       // 1. Calculate Commissions
-      const weight = pendingTransaction.weight_kg;
+      const weight = Number(pendingTransaction.weight_kg);
       const commissionRate = GameMechanics.COMMISSION.RATE_PER_KG;
       const commission = weight * commissionRate;
 
@@ -663,7 +663,7 @@ export default function ContributorPage() {
       }).eq('id', user.id);
 
       // 6. Update Local State & UI
-      setGlobalStats(prev => ({
+      setGlobalStats((prev: typeof globalStats) => ({
         points: prev.points + earnedPoints,
         savedCO2: `${(((parseFloat(prev.savedCO2) || 0) + earnedCO2)).toFixed(2)}kg`,
         recycled: (parseInt(prev.recycled) + totalItems).toString()
@@ -855,8 +855,8 @@ export default function ContributorPage() {
         <CartView
           cart={cart}
           isLocked={isActive || !!currentCollectorId}
-          onUpdateQuantity={(id, delta) => {
-            setCart(prev => prev.map(item => item.id === id ? { ...item, quantity: Math.max(0, item.quantity + delta) } : item).filter(i => i.quantity > 0));
+          onUpdateQuantity={(id: string, delta: number) => {
+            setCart((prev: CartItem[]) => prev.map((item: CartItem) => item.id === id ? { ...item, quantity: Math.max(0, item.quantity + delta) } : item).filter((i: CartItem) => i.quantity > 0));
           }}
           onAddMore={pickImage}
           onReviewAddress={async () => {

@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, AppStateStatus, BackHandler, Dimensions, Image, Linking, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, AppStateStatus, BackHandler, Dimensions, FlatList, Image, Linking, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import MapViewDirections from 'react-native-maps-directions';
@@ -90,6 +90,7 @@ export default function CollectorHomeScreen() {
    */
   const [activeQueue, setActiveQueue] = useState<Job[]>([]);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showContributorListModal, setShowContributorListModal] = useState(false);
 
   /** Calculated route metrics (distance/duration) from Directions API. */
   const [routeInfo, setRouteInfo] = useState<{ distance: number, duration: number } | null>(null);
@@ -116,8 +117,8 @@ export default function CollectorHomeScreen() {
     const startPoint: Point = { id: 'start', latitude: region.latitude, longitude: region.longitude };
     try {
       const result = await solveRealTSP(startPoint, activeQueue, GOOGLE_MAPS_API_KEY, mode);
-      const optimizedJobs = result.path.slice(1).map(p =>
-        activeQueue.find(j => j.id === p.id)
+      const optimizedJobs = result.path.slice(1).map((p: Point) =>
+        activeQueue.find((j: Job) => j.id === p.id)
       ).filter(Boolean) as Job[];
 
       setActiveQueue(optimizedJobs);
@@ -192,7 +193,7 @@ export default function CollectorHomeScreen() {
           try {
             const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
             const { latitude, longitude } = location.coords;
-            setRegion(prev => ({ ...prev, latitude, longitude }));
+            setRegion((prev: typeof region) => ({ ...prev, latitude, longitude }));
             await updateSupabaseLocation(latitude, longitude);
             console.log('Location synced after returning from Google Maps:', latitude, longitude);
           } catch (e) {
@@ -425,7 +426,7 @@ export default function CollectorHomeScreen() {
     // Subscribe to new
     const channel = supabase
       .channel(`chat-home-${collectorId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload: any) => {
         const newMsg = payload.new as ChatMessage;
         console.log("New message received:", newMsg);
 
@@ -434,14 +435,14 @@ export default function CollectorHomeScreen() {
           (newMsg.sender_id === collectorId && newMsg.receiver_id === activeJob.id);
 
         if (isRelevant) {
-          setMessages(prev => {
+          setMessages((prev: ChatMessage[]) => {
             // Deduplication check
-            if (prev.some(m => m.id === newMsg.id)) return prev;
+            if (prev.some((m: ChatMessage) => m.id === newMsg.id)) return prev;
             return [...prev, newMsg];
           });
         }
       })
-      .subscribe((status) => {
+      .subscribe((status: string) => {
         console.log("Chat subscription status:", status);
       });
 
@@ -461,7 +462,7 @@ export default function CollectorHomeScreen() {
   useEffect(() => {
     if (!currentTransactionId) return;
     const channel = supabase.channel(`transaction-${currentTransactionId}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'transactions', filter: `id=eq.${currentTransactionId}` }, (payload) => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'transactions', filter: `id=eq.${currentTransactionId}` }, (payload: any) => {
         if (payload.new.status === 'confirmed') {
           setWaitingForConfirmation(false);
           setIsWeightModalOpen(false);
@@ -508,7 +509,7 @@ export default function CollectorHomeScreen() {
       { accuracy: Location.Accuracy.High, distanceInterval: 5 },
       (newLocation) => {
         const { latitude, longitude, heading } = newLocation.coords;
-        setRegion(prev => ({ ...prev, latitude, longitude }));
+        setRegion((prev: typeof region) => ({ ...prev, latitude, longitude }));
         if (mapRef.current) {
           mapRef.current.animateCamera({
             center: { latitude, longitude },
@@ -543,7 +544,7 @@ export default function CollectorHomeScreen() {
       { accuracy: Location.Accuracy.High, distanceInterval: 10 },
       (newLocation) => {
         const { latitude, longitude } = newLocation.coords;
-        setRegion(prev => ({ ...prev, latitude, longitude }));
+        setRegion((prev: typeof region) => ({ ...prev, latitude, longitude }));
         updateSupabaseLocation(latitude, longitude);
       }
     );
@@ -597,12 +598,12 @@ export default function CollectorHomeScreen() {
         });
       } else {
         // End of route
-        setNextTurn(prev => ({ ...prev, instruction: "Arriving at destination", icon: "flag" }));
+        setNextTurn((prev: typeof nextTurn) => ({ ...prev, instruction: "Arriving at destination", icon: "flag" }));
         handleArrived();
       }
     } else {
       // Just update distance text
-      setNextTurn(prev => ({ ...prev, distance: `${Math.round(distToTurn)} m` }));
+      setNextTurn((prev: typeof nextTurn) => ({ ...prev, distance: `${Math.round(distToTurn)} m` }));
     }
   };
 
@@ -675,7 +676,7 @@ export default function CollectorHomeScreen() {
         .limit(50);
 
       // Filter locally to ensure we only get 'active' OR 'assigned to ME'
-      const contributors = (rawContributors || []).filter(c =>
+      const contributors = (rawContributors || []).filter((c: any) =>
         c.status === 'active' || (c.status === 'assigned' && c.collector_id === collectorId)
       );
 
@@ -736,20 +737,14 @@ export default function CollectorHomeScreen() {
       processedJobs.sort((a, b) => a.rawDistance - b.rawDistance);
       setAvailableJobs(processedJobs);
 
-      const closest = processedJobs[0];
-      resolveAddressForJob(closest);
-      setActiveJob(closest);
+      // Resolve addresses for all jobs in parallel
+      processedJobs.forEach(job => resolveAddressForJob(job));
       setRouteInfo(null);
 
-      // 5. Transition UI (Simulate 'Finding...' delay)
+      // Show contributor selection modal
       setTimeout(() => {
         setAppState('request_received');
-        if (mapRef.current) {
-          mapRef.current.fitToCoordinates(
-            [{ latitude: freshRegion.latitude, longitude: freshRegion.longitude }, { latitude: closest.latitude, longitude: closest.longitude }],
-            { edgePadding: { top: 100, right: 50, bottom: 300, left: 50 }, animated: true }
-          );
-        }
+        setShowContributorListModal(true);
       }, 1500);
 
     } catch (err: any) {
@@ -765,8 +760,8 @@ export default function CollectorHomeScreen() {
       if (reverseGeocode.length > 0) {
         const item = reverseGeocode[0];
         const address = `${item.street || ''} ${item.name || ''}, ${item.city || ''}`.replace(/^ , /, '').replace(/, $/, '').trim();
-        setAvailableJobs(prev => prev.map(j => j.id === job.id ? { ...j, address: address || "Unknown Location" } : j));
-        setActiveJob(prev => (prev && prev.id === job.id) ? { ...prev, address: address || "Unknown Location" } : prev);
+        setAvailableJobs((prev: Job[]) => prev.map((j: Job) => j.id === job.id ? { ...j, address: address || "Unknown Location" } : j));
+        setActiveJob((prev: Job | null) => (prev && prev.id === job.id) ? { ...prev, address: address || "Unknown Location" } : prev);
       }
     } catch (e) { console.log(e); }
   };
@@ -832,8 +827,8 @@ export default function CollectorHomeScreen() {
     if (!activeJob) return;
 
     // Add to queue if not already there
-    setActiveQueue(prev => {
-      if (prev.find(j => j.id === activeJob.id)) return prev;
+    setActiveQueue((prev: Job[]) => {
+      if (prev.find((j: Job) => j.id === activeJob.id)) return prev;
       return [...prev, activeJob];
     });
 
@@ -871,8 +866,8 @@ export default function CollectorHomeScreen() {
     solveRealTSP(startPoint, activeQueue, GOOGLE_MAPS_API_KEY, algorithmMode)
       .then(result => {
         // Map Point results back to the original Job objects to preserve all fields (address, name, etc.)
-        const optimizedJobs = result.path.slice(1).map(p =>
-          activeQueue.find(j => j.id === p.id)
+        const optimizedJobs = result.path.slice(1).map((p: Point) =>
+          activeQueue.find((j: Job) => j.id === p.id)
         ).filter(Boolean) as Job[];
 
         setActiveQueue(optimizedJobs);
@@ -949,9 +944,25 @@ export default function CollectorHomeScreen() {
     setAvailableJobs([]);
     // Also remove from queue if it was there
     if (activeJob) {
-      setActiveQueue(prev => prev.filter(j => j.id !== activeJob.id));
+      setActiveQueue((prev: Job[]) => prev.filter((j: Job) => j.id !== activeJob.id));
     }
     setAppState('idle');
+  };
+
+  /**
+   * Handles selection of a contributor from the modal list.
+   * Sets the selected job as active and zooms the map to show both
+   * the collector and the selected contributor.
+   */
+  const handleSelectContributor = (job: Job) => {
+    setShowContributorListModal(false);
+    setActiveJob(job);
+    if (mapRef.current) {
+      mapRef.current.fitToCoordinates(
+        [{ latitude: region.latitude, longitude: region.longitude }, { latitude: job.latitude, longitude: job.longitude }],
+        { edgePadding: { top: 100, right: 50, bottom: 300, left: 50 }, animated: true }
+      );
+    }
   };
 
   const openMapsNavigation = () => {
@@ -975,7 +986,7 @@ export default function CollectorHomeScreen() {
           setNextTurn({ instruction: stripHtml(firstStep.html_instructions), subInstruction: "Continue straight", distance: firstStep.distance.text, icon: getIconForManeuver(firstStep.maneuver) });
         }
       }
-    } catch (error) { console.log(error); setNextTurn(prev => ({ ...prev, instruction: "Follow map route" })); }
+    } catch (error) { console.log(error); setNextTurn((prev: typeof nextTurn) => ({ ...prev, instruction: "Follow map route" })); }
   };
 
   const handleStartRide = () => {
@@ -1054,7 +1065,7 @@ export default function CollectorHomeScreen() {
       } else {
         console.log("Status updated to completed. Rows affected:", data?.length);
       }
-      setActiveQueue(prev => prev.filter(j => j.id !== activeJob!.id));
+      setActiveQueue((prev: Job[]) => prev.filter((j: Job) => j.id !== activeJob!.id));
     }
 
     if (transactionPayload) {
@@ -1062,7 +1073,7 @@ export default function CollectorHomeScreen() {
     }
 
     // Check if more jobs exist
-    const remainingQueue = activeQueue.filter(j => j.id !== activeJob?.id);
+    const remainingQueue = activeQueue.filter((j: Job) => j.id !== activeJob?.id);
 
     if (remainingQueue.length > 0) {
       const nextJob = remainingQueue[0];
@@ -1086,7 +1097,7 @@ export default function CollectorHomeScreen() {
       }, 5000); // 5 seconds for success screen
     }
   };
-  const handleMapTypeToggle = () => setMapType(prev => (prev === 'standard' ? 'satellite' : prev === 'satellite' ? 'hybrid' : 'standard'));
+  const handleMapTypeToggle = () => setMapType((prev: MapType) => (prev === 'standard' ? 'satellite' : prev === 'satellite' ? 'hybrid' : 'standard'));
 
   // --- Render Components ---
 
@@ -1297,13 +1308,11 @@ export default function CollectorHomeScreen() {
         </TouchableOpacity>
       </View>
       <View style={[styles.bottomSheetNav, { paddingBottom: insets.bottom + 10 }]}>
-        <View style={styles.bottomSheetContent}>
-          <TouchableOpacity style={styles.altRouteButton}><MaterialCommunityIcons name="source-branch" size={28} color="#333" /></TouchableOpacity>
-          <View style={styles.bottomStats}>
+        <View style={[styles.bottomSheetContent, { justifyContent: 'center' }]}>
+          <View style={[styles.bottomStats, { alignItems: 'center' }]}>
             <Text style={styles.bottomTimeBig}>{routeInfo ? Math.ceil(routeInfo.duration) : 0} min</Text>
             <Text style={styles.bottomTimeSmall}>{routeInfo ? (routeInfo.distance).toFixed(1) : 0} km remaining</Text>
           </View>
-          <TouchableOpacity style={styles.exitButton} onPress={handleArrived}><Ionicons name="close" size={30} color="#333" /></TouchableOpacity>
         </View>
       </View>
     </>
@@ -1415,10 +1424,85 @@ export default function CollectorHomeScreen() {
     </Modal>
   );
 
+  /**
+   * Renders the contributor selection modal.
+   * Shows a list of all found contributors sorted by distance.
+   * Tapping a row selects that contributor and proceeds with the normal flow.
+   */
+  const renderContributorListModal = () => (
+    <Modal
+      visible={showContributorListModal}
+      animationType="slide"
+      transparent={true}
+      onRequestClose={() => setShowContributorListModal(false)}
+    >
+      <View style={styles.contributorModalOverlay}>
+        <View style={[styles.contributorModalContent, { backgroundColor: isDark ? '#1E1E1E' : '#FFF' }]}>
+          <View style={styles.contributorModalHeader}>
+            <Text style={[styles.contributorModalTitle, { color: colors.text }]}>Available Contributors</Text>
+            <Text style={[styles.contributorModalSubtitle, { color: colors.textSecondary }]}>
+              {availableJobs.length} contributor{availableJobs.length !== 1 ? 's' : ''} found nearby
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.contributorModalClose}
+            onPress={() => {
+              setShowContributorListModal(false);
+              setAppState('idle');
+              setAvailableJobs([]);
+            }}
+          >
+            <Ionicons name="close" size={24} color={colors.textSecondary} />
+          </TouchableOpacity>
+
+          <FlatList
+            data={availableJobs}
+            keyExtractor={(item) => item.id}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.contributorListContent}
+            renderItem={({ item, index }) => (
+              <TouchableOpacity
+                style={[styles.contributorItem, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F8FAFC', borderColor: colors.border }]}
+                onPress={() => handleSelectContributor(item)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.contributorItemLeft}>
+                  <Image
+                    source={{ uri: item.contributorAvatar || "https://i.pravatar.cc/150?u=default" }}
+                    style={styles.contributorAvatar}
+                  />
+                  <View style={styles.contributorInfo}>
+                    <Text style={[styles.contributorName, { color: colors.text }]} numberOfLines={1}>
+                      {item.contributorName}
+                    </Text>
+                    <Text style={[styles.contributorAddress, { color: colors.textSecondary }]} numberOfLines={1}>
+                      {item.address}
+                    </Text>
+                    <View style={styles.contributorTags}>
+                      <View style={[styles.distanceTag, { backgroundColor: isDark ? 'rgba(16,185,129,0.2)' : '#DCFCE7' }]}>
+                        <MaterialCommunityIcons name="map-marker" size={12} color={colors.primary} />
+                        <Text style={[styles.distanceTagText, { color: colors.primary }]}>{item.distanceLabel}</Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+                <View style={styles.contributorItemRight}>
+                  <Text style={[styles.contributorIndex, { color: colors.textSecondary }]}>#{index + 1}</Text>
+                  <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+                </View>
+              </TouchableOpacity>
+            )}
+          />
+        </View>
+      </View>
+    </Modal>
+  );
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
       <MapView
-        ref={mapRef}
+        {...{ref: mapRef} as any}
         style={styles.map}
 
         mapType={mapType}
@@ -1432,14 +1516,14 @@ export default function CollectorHomeScreen() {
         <Marker coordinate={region} title="You">
           <View style={styles.truckIconContainer}><MaterialCommunityIcons name="truck" size={24} color="#fff" /></View>
         </Marker>
-        {appState === 'request_received' && availableJobs.map((job) => {
+        {appState === 'request_received' && availableJobs.map((job: Job) => {
           const isSelected = activeJob?.id === job.id;
-          const isInQueue = activeQueue.find(q => q.id === job.id);
-          const queueIndex = activeQueue.findIndex(q => q.id === job.id) + 1;
+          const isInQueue = activeQueue.find((q: Job) => q.id === job.id);
+          const queueIndex = activeQueue.findIndex((q: Job) => q.id === job.id) + 1;
 
           const markerDistanceText = (isSelected && routeInfo) ? `${(routeInfo.distance).toFixed(1)} km` : job.distanceLabel;
           return (
-            <Marker key={job.id} coordinate={{ latitude: job.latitude, longitude: job.longitude }} onPress={() => handleMarkerPress(job)}>
+            <Marker key={job.id} coordinate={{ latitude: job.latitude, longitude: job.longitude }} onPress={() => handleMarkerPress(job)} {...{} as any}>
               <View style={{ alignItems: 'center' }}>
                 <View style={styles.distanceBadge}><Text style={styles.distanceText}>{markerDistanceText}</Text></View>
                 <View style={[styles.jobMarker, { backgroundColor: colors.overlay }, (isSelected || isInQueue) ? { backgroundColor: isInQueue ? '#4CAF50' : '#FF5722', borderColor: '#FFF', transform: [{ scale: 1.2 }] } : {}]}>
@@ -1468,7 +1552,7 @@ export default function CollectorHomeScreen() {
             }
             waypoints={
               activeQueue.length > 1
-                ? activeQueue.slice(0, -1).map(j => ({ latitude: j.latitude, longitude: j.longitude }))
+                ? activeQueue.slice(0, -1).map((j: Job) => ({ latitude: j.latitude, longitude: j.longitude }))
                 : undefined
             }
             apikey={GOOGLE_MAPS_API_KEY || ""}
@@ -1517,6 +1601,8 @@ export default function CollectorHomeScreen() {
         onClose={() => setShowInnovationModal(false)}
         routeMetrics={routeMetrics}
       />
+
+      {showContributorListModal && renderContributorListModal()}
 
       {appState !== 'driving' && (
         <View style={[styles.topRightButtons, { top: 60 + insets.top }]}>
@@ -1756,5 +1842,25 @@ const styles = StyleSheet.create({
   distanceText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
   jobMarker: { alignItems: 'center' },
   topRightButtons: { position: 'absolute', right: 20, gap: 10, alignItems: 'center' },
-  idleOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'flex-end', alignItems: 'center', paddingBottom: 110 }
+  idleOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'flex-end', alignItems: 'center', paddingBottom: 110 },
+
+  // --- CONTRIBUTOR LIST MODAL ---
+  contributorModalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
+  contributorModalContent: { maxHeight: '70%', borderTopLeftRadius: 32, borderTopRightRadius: 32, paddingTop: 12 },
+  contributorModalHeader: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 8 },
+  contributorModalTitle: { fontSize: 22, fontWeight: '900', letterSpacing: -0.5 },
+  contributorModalSubtitle: { fontSize: 14, fontWeight: '600', marginTop: 4 },
+  contributorModalClose: { position: 'absolute', top: 20, right: 20, padding: 8, zIndex: 10 },
+  contributorListContent: { paddingHorizontal: 16, paddingBottom: 40 },
+  contributorItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderRadius: 16, marginBottom: 12, borderWidth: 1 },
+  contributorItemLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  contributorAvatar: { width: 50, height: 50, borderRadius: 25, marginRight: 12 },
+  contributorInfo: { flex: 1 },
+  contributorName: { fontSize: 16, fontWeight: '800', marginBottom: 2 },
+  contributorAddress: { fontSize: 12, fontWeight: '500', marginBottom: 6 },
+  contributorTags: { flexDirection: 'row', gap: 8 },
+  distanceTag: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, gap: 4 },
+  distanceTagText: { fontSize: 11, fontWeight: '700' },
+  contributorItemRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  contributorIndex: { fontSize: 12, fontWeight: '700' }
 });

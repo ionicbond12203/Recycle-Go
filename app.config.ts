@@ -5,6 +5,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ...config,
     name: config.name ?? "Recycle Go",
     slug: config.slug ?? "recycle-go",
+    plugins: [
+        ...(config.plugins ?? []),
+        "expo-asset",
+        "expo-font",
+        "expo-image",
+    ],
     android: {
         ...config.android,
         config: {
