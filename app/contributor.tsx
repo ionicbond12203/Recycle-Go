@@ -583,35 +583,6 @@ export default function ContributorPage() {
     }
   };
 
-  const handleCancelRequest = () => {
-    Alert.alert(
-      "Cancel Request",
-      "Are you sure you want to cancel your pickup request?",
-      [
-        { text: "No", style: "cancel" },
-        {
-          text: "Yes, Cancel",
-          style: "destructive",
-          onPress: async () => {
-            if (!deviceId) return;
-            try {
-              await supabase
-                .from('contributors')
-                .update({ status: 'idle', collector_id: null })
-                .eq('id', deviceId);
-              setIsActive(false);
-              clearTrackingState();
-              setCurrentScreen('home');
-            } catch (e: any) {
-              console.error("Cancel failed:", e);
-              Alert.alert("Error", "Could not cancel the request.");
-            }
-          }
-        }
-      ]
-    );
-  };
-
   // New Verification Confirm Logic
   const handleVerifyTransaction = async () => {
     if (!user || !pendingTransaction) return;
@@ -924,9 +895,9 @@ export default function ContributorPage() {
           onBack={() => setCurrentScreen('cart')}
           setRouteInfo={setRouteInfo}
           onConfirmCollection={cart.length > 0 ? handleConfirmCollection : undefined}
-          onCancelRequest={handleCancelRequest}
           collectorName={collectorName || undefined}
           collectorAvatar={collectorAvatar || undefined}
+          isRequestActive={isActive}
         />
       )}
 

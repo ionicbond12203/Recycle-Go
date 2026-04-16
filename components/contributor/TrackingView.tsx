@@ -21,9 +21,9 @@ interface TrackingViewProps {
     onBack: () => void;
     setRouteInfo: (info: { distance: number, duration: number }) => void;
     onConfirmCollection?: () => void;
-    onCancelRequest?: () => void;
     collectorName?: string;
     collectorAvatar?: string;
+    isRequestActive?: boolean;
 }
 
 export default function TrackingView({
@@ -37,9 +37,9 @@ export default function TrackingView({
     onBack,
     setRouteInfo,
     onConfirmCollection,
-    onCancelRequest,
     collectorName,
-    collectorAvatar
+    collectorAvatar,
+    isRequestActive = false
 }: TrackingViewProps) {
     const { t } = useLanguage();
     const { colors, isDark } = useTheme();
@@ -80,6 +80,7 @@ export default function TrackingView({
         <>
             {collectorLocation && userLocation && (
                 <MapViewDirections
+                    key={`route-${collectorLocation.latitude}-${collectorLocation.longitude}`}
                     origin={collectorLocation}
                     destination={userLocation}
                     apikey={GOOGLE_MAPS_API_KEY}
@@ -112,11 +113,6 @@ export default function TrackingView({
             <Text style={[styles.confirmText, { color: colors.textSecondary }]}>
                 Your location will be shared automatically when you request a pickup from the cart.
             </Text>
-            {onCancelRequest && (
-                <TouchableOpacity onPress={onCancelRequest} style={styles.cancelBtn}>
-                    <Text style={styles.cancelBtnText}>Cancel Request</Text>
-                </TouchableOpacity>
-            )}
         </View>
     );
 
@@ -163,17 +159,13 @@ export default function TrackingView({
                     <Ionicons name="call" size={20} color={colors.text} />
                 </TouchableOpacity>
             </View>
-            {onCancelRequest && (
-                <TouchableOpacity onPress={onCancelRequest} style={[styles.cancelBtn, { marginTop: 15 }]}>
-                    <Text style={styles.cancelBtnText}>Cancel Pickup</Text>
-                </TouchableOpacity>
-            )}
         </View>
     );
 
     return (
         <View style={{ flex: 1 }}>
             <MapView
+                key={collectorLocation ? 'tracking-with-route' : 'tracking'}
                 ref={mapRef}
                 style={StyleSheet.absoluteFill}
                 provider={PROVIDER_GOOGLE}
@@ -217,6 +209,4 @@ const styles = StyleSheet.create({
     driverName: { fontSize: 16, fontWeight: 'bold' },
     driverPlate: { fontSize: 12, marginTop: 2 },
     callBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
-    cancelBtn: { alignSelf: 'center', paddingVertical: 12, paddingHorizontal: 24 },
-    cancelBtnText: { color: '#EF4444', fontWeight: '700', fontSize: 14 },
 });

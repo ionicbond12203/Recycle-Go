@@ -1682,6 +1682,7 @@ export default function CollectorHomeScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
       <MapView
+        key={activeJob ? 'map-with-route' : 'map'}
         {...{ref: mapRef} as any}
         style={styles.map}
 
@@ -1719,6 +1720,7 @@ export default function CollectorHomeScreen() {
         )}
         {(appState === 'request_received' || appState === 'navigating' || appState === 'driving') && activeJob && (
           <MapViewDirections
+            key={activeJob.id || 'route'}
             origin={{ latitude: region.latitude, longitude: region.longitude }}
             destination={
               activeQueue.length > 1
