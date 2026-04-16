@@ -10,6 +10,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         "expo-asset",
         "expo-font",
         "expo-image",
+        "expo-audio",
     ],
     android: {
         ...config.android,

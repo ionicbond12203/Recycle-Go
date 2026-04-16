@@ -3,7 +3,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
-import { askGeminiStream, askEcoAgent } from '../lib/gemini';
+import { askGeminiStream, askEcoAgent, processVoiceCommand } from '../lib/gemini';
+import { useAudioRecorder, setAudioModeAsync, requestRecordingPermissionsAsync, RecordingPresets } from 'expo-audio';
+import * as FileSystem from 'expo-file-system/legacy';
 
 interface Message {
     id: string;
@@ -19,7 +21,10 @@ interface EcoBotProps {
     onOpenCart?: () => void;
     onViewProfile?: () => void;
     onTrack?: () => void;
+    onOptimizeRoute?: (mode: 'standard' | 'green') => void;
+    onMarkArrived?: () => void;
     userStats?: { points: number, savedCO2: string, recycled: string };
+    initialMessage?: string;
 }
 
 const styles = StyleSheet.create({
@@ -113,25 +118,121 @@ const MessageBubble = React.memo(({ item, colors }: { item: Message, colors: any
     </View>
 ));
 
-export default function EcoBot({ visible, onClose, onScan, onOpenCart, onViewProfile, onTrack, userStats }: EcoBotProps) {
+export default function EcoBot({ 
+    visible, onClose, onScan, onOpenCart, onViewProfile, onTrack, 
+    onOptimizeRoute, onMarkArrived,
+    userStats, initialMessage 
+}: EcoBotProps) {
     const { colors } = useTheme();
     const insets = useSafeAreaInsets();
-    const [messages, setMessages] = useState<Message[]>([
-        { id: '1', text: "Hi! I'm EcoBot 🤖. Not sure if something is recyclable? Ask me!", sender: 'bot' }
-    ]);
+    const [messages, setMessages] = useState<Message[]>([]);
     const [inputText, setInputText] = useState("");
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const [isStreaming, setIsStreaming] = useState(false);
+    const [isRecording, setIsRecording] = useState(false);
     const flatListRef = useRef<FlatList>(null);
     const streamingTextRef = useRef("");
+    
+    // Custom recording options for Gemini Native Audio (16kHz Mono)
+    const geminiAudioOptions = {
+        extension: Platform.OS === 'ios' ? '.wav' : '.m4a',
+        sampleRate: 16000,
+        numberOfChannels: 1,
+        bitRate: 256000,
+        android: {
+            outputFormat: 'mpeg4' as any,
+            audioEncoder: 'aac' as any,
+        },
+        ios: {
+            outputFormat: 'lpcm' as any, // LINEARPCM
+            audioQuality: 127, // MAX
+            linearPCMBitDepth: 16,
+            linearPCMIsBigEndian: false,
+            linearPCMIsFloat: false,
+        },
+    };
 
-    // Setup suggestions when modal opens
+    const recorder = useAudioRecorder(geminiAudioOptions as any);
+    const liveClient = useRef<any>(null);
+
+    // Setup suggestions and initial message when modal opens
     useEffect(() => {
         if (visible) {
             const shuffled = [...ALL_SUGGESTIONS].sort(() => 0.5 - Math.random());
             setSuggestions(shuffled.slice(0, 3));
+            
+            // Set initial messages
+            if (initialMessage) {
+                setMessages([{ id: Date.now().toString(), text: initialMessage, sender: 'bot' }]);
+            } else {
+                setMessages([{ id: Date.now().toString(), text: "Hi! I'm EcoBot 🤖. Not sure if something is recyclable? Ask me!", sender: 'bot' }]);
+            }
+            
+            // Warm up Gemini Live WebSocket
+            import('../lib/geminiLive').then(({ GeminiLiveClient }) => {
+                liveClient.current = new GeminiLiveClient((resp) => {
+                    // This can be used for real-time streaming in the future
+                });
+            });
+        } else {
+            if (liveClient.current) {
+                liveClient.current.close();
+            }
         }
-    }, [visible]);
+    }, [visible, initialMessage]);
+
+    const handleVoiceRecord = async () => {
+        try {
+            if (isRecording) {
+                setIsRecording(false);
+                await recorder.stop();
+                const uri = recorder.uri;
+                if (!uri) return;
+                
+                const botMsgId = Date.now().toString();
+                setMessages(prev => [...prev, { id: botMsgId, text: '🎧 Processing Voice...', sender: 'bot' }]);
+                
+                // Read audio as base64
+                const base64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' as any });
+                
+                // Use the improved Live-capable processing
+                const responseStr = await processVoiceCommand(base64, Platform.OS === 'ios' ? "audio/wav" : "audio/mp4");
+                const result = JSON.parse(responseStr);
+                
+                let finalText = "Sorry, I couldn't understand that.";
+                
+                if (result.error) {
+                    if (result.code === 429) {
+                        finalText = `AI is cooling down! 🧊 Please wait ${result.retryAfter || 10} seconds before the next command.`;
+                    } else {
+                        finalText = `Oops! ${result.message || "I'm having trouble connecting."} 🤖`;
+                    }
+                } else if (result.action || result.responseMsg) {
+                    finalText = result.responseMsg || `Triggered: ${result.action}`;
+                    
+                    // Trigger Actions
+                    if (result.action === '[ACTION_SCAN]' && onScan) setTimeout(onScan, 800);
+                    else if (result.action === '[ACTION_OPEN_CART]' && onOpenCart) setTimeout(onOpenCart, 800);
+                    else if (result.action === '[ACTION_VIEW_PROFILE]' && onViewProfile) setTimeout(onViewProfile, 800);
+                    else if (result.action === '[ACTION_TRACK_DRIVER]' && onTrack) setTimeout(onTrack, 800);
+                    else if (result.action === '[ACTION_REOPTIMIZE_FAST]' && onOptimizeRoute) setTimeout(() => onOptimizeRoute('standard'), 800);
+                    else if (result.action === '[ACTION_REOPTIMIZE_GREEN]' && onOptimizeRoute) setTimeout(() => onOptimizeRoute('green'), 800);
+                    else if (result.action === '[ACTION_ARRIVED]' && onMarkArrived) setTimeout(onMarkArrived, 800);
+                }
+                
+                setMessages(prev => prev.map(m => m.id === botMsgId ? { ...m, text: finalText } : m));
+            } else {
+                await requestRecordingPermissionsAsync();
+                await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+                await recorder.prepareToRecordAsync();
+                recorder.record();
+                setIsRecording(true);
+            }
+        } catch (err) {
+            console.error('Voice record failed', err);
+            setIsRecording(false);
+        }
+    };
 
     const handleSend = async (overrideText?: string) => {
         const textToSend = overrideText || inputText;
@@ -147,22 +248,11 @@ export default function EcoBot({ visible, onClose, onScan, onOpenCart, onViewPro
         setIsStreaming(true);
         streamingTextRef.current = "";
 
-        let lastUpdate = Date.now();
-
         try {
             const finalReply = await askEcoAgent(textToSend, messages, userStats);
             streamingTextRef.current = finalReply;
 
-            setMessages(prev =>
-                prev.map(m =>
-                    m.id === botMsgId
-                        ? { ...m, text: finalReply.replace('[CONTACT_ACTION]', '').trim() }
-                        : m
-                )
-            );
-
-            // Final state sync for completion & action detection
-            const finalProcessed = streamingTextRef.current;
+            const finalProcessed = finalReply;
             const hasAction = finalProcessed.includes('[CONTACT_ACTION]');
             
             // Handle Navigation Triggers
@@ -174,6 +264,12 @@ export default function EcoBot({ visible, onClose, onScan, onOpenCart, onViewPro
                 setTimeout(() => onViewProfile(), 800);
             } else if (finalProcessed.includes('[ACTION_TRACK_DRIVER]') && onTrack) {
                 setTimeout(() => onTrack(), 800);
+            } else if (finalProcessed.includes('[ACTION_REOPTIMIZE_FAST]') && onOptimizeRoute) {
+                setTimeout(() => onOptimizeRoute('standard'), 800);
+            } else if (finalProcessed.includes('[ACTION_REOPTIMIZE_GREEN]') && onOptimizeRoute) {
+                setTimeout(() => onOptimizeRoute('green'), 800);
+            } else if (finalProcessed.includes('[ACTION_ARRIVED]') && onMarkArrived) {
+                setTimeout(() => onMarkArrived(), 800);
             }
 
             const cleanFinal = finalProcessed
@@ -182,6 +278,10 @@ export default function EcoBot({ visible, onClose, onScan, onOpenCart, onViewPro
                 .replace('[ACTION_OPEN_CART]', '')
                 .replace('[ACTION_VIEW_PROFILE]', '')
                 .replace('[ACTION_TRACK_DRIVER]', '')
+                .replace('[ACTION_REOPTIMIZE_FAST]', '')
+                .replace('[ACTION_REOPTIMIZE_GREEN]', '')
+                .replace('[ACTION_ARRIVED]', '')
+                .replace('[ACTION_EARNINGS]', '')
                 .trim();
 
             setMessages(prev =>
@@ -208,7 +308,6 @@ export default function EcoBot({ visible, onClose, onScan, onOpenCart, onViewPro
     return (
         <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
             <View style={[styles.container, { paddingTop: Platform.OS === 'android' ? 20 : 0, backgroundColor: colors.backgroundSecondary }]}>
-
                 <ChatHeader
                     colors={colors}
                     onClearChat={() => setMessages([{ id: Date.now().toString(), text: "Hi! I'm EcoBot 🤖. Not sure if something is recyclable? Ask me!", sender: 'bot' }])}
@@ -260,6 +359,14 @@ export default function EcoBot({ visible, onClose, onScan, onOpenCart, onViewPro
                             disabled={isStreaming}
                         >
                             <Ionicons name={isStreaming ? "ellipsis-horizontal" : "send"} size={20} color={colors.textInverse} />
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity
+                            style={[styles.sendBtn, { backgroundColor: isRecording ? '#ff4444' : colors.card, marginLeft: 8 }]}
+                            onPress={handleVoiceRecord}
+                            disabled={isStreaming}
+                        >
+                            <Ionicons name={isRecording ? "stop" : "mic"} size={20} color={isRecording ? 'white' : colors.primary} />
                         </TouchableOpacity>
                     </View>
                 </KeyboardAvoidingView>

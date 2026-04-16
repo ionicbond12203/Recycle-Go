@@ -8,13 +8,22 @@ import LinearGradient from 'react-native-linear-gradient';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import MapViewDirections from 'react-native-maps-directions';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withRepeat, 
+  withTiming, 
+  interpolate 
+} from 'react-native-reanimated';
+import { useLanguage } from '../../contexts/LanguageContext';
 import InnovationVisualizerModal from '../../components/collector/InnovationVisualizerModal';
 import WeightVerificationModal from '../../components/collector/WeightVerificationModal';
 import ChatModal from '../../components/contributor/ChatModal';
 import JobDetailModal from '../../components/JobDetailModal';
+import EcoBot from '../../components/EcoBot';
 import { GameMechanics } from '../../constants/GameMechanics';
 import { useAuth } from '../../contexts/AuthContext';
-import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { getHaversineDistance, Point, RouteMetrics, solveRealTSP } from '../../lib/algorithms';
 import { setBackgroundCollectorId, startBackgroundLocationTracking, stopBackgroundLocationTracking } from '../../lib/backgroundLocation';
@@ -49,6 +58,72 @@ const DRIVING_VIEW_CONFIG = GameMechanics.MAP.DRIVING_VIEW;
  * - Integrates with Supabase Realtime for chat and transaction updates.
  * - Uses Expo Location for high-accuracy tracking during active trips.
  */
+
+interface AnimatedMarkerProps {
+  job: Job;
+  isSelected: boolean;
+  isInQueue: boolean;
+  queueIndex: number;
+  markerDistanceText: string;
+  pulseValue: any;
+  colors: any;
+  onPress: (job: Job) => void;
+}
+
+const AnimatedMarker = React.memo(({ job, isSelected, isInQueue, queueIndex, markerDistanceText, pulseValue, colors, onPress }: AnimatedMarkerProps) => {
+  const animatedRingStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: interpolate(pulseValue.value, [0, 1], [1, 2.5]) }],
+    opacity: interpolate(pulseValue.value, [0, 0.5, 1], [0.6, 0.3, 0]),
+  }));
+
+  return (
+    <Marker 
+      coordinate={{ latitude: job.latitude, longitude: job.longitude }} 
+      onPress={() => onPress(job)}
+      {...{} as any}
+    >
+      <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+        {!isInQueue && (
+          <Animated.View style={[
+            styles.pulseRing,
+            { borderColor: colors.primary },
+            animatedRingStyle
+          ]} />
+        )}
+
+        <View style={styles.distanceBadge}><Text style={styles.distanceText}>{markerDistanceText}</Text></View>
+        
+        <View style={[
+          styles.jobMarkerContainer,
+          (isSelected || isInQueue) && { transform: [{ scale: 1.15 }] }
+        ]}>
+          <View style={[
+            styles.jobMarkerPin, 
+            { backgroundColor: isInQueue ? '#4CAF50' : isSelected ? '#FF5722' : colors.primary },
+            (isSelected || isInQueue) && { borderWidth: 2, borderColor: '#FFF' }
+          ]}>
+            {isInQueue ? (
+              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 12 }}>{queueIndex}</Text>
+            ) : (
+              <MaterialCommunityIcons name="recycle" size={18} color="#fff" />
+            )}
+          </View>
+          <View style={[
+            styles.pinPointer, 
+            { borderTopColor: isInQueue ? '#4CAF50' : isSelected ? '#FF5722' : colors.primary }
+          ]} />
+        </View>
+
+        {!isInQueue && !isSelected && (
+          <View style={styles.tapHint}>
+            <Text style={styles.tapHintText}>TAP</Text>
+          </View>
+        )}
+      </View>
+    </Marker>
+  );
+});
+
 export default function CollectorHomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -160,8 +235,27 @@ export default function CollectorHomeScreen() {
   const [routeMetrics, setRouteMetrics] = useState<RouteMetrics | null>(null);
   const [showInnovationModal, setShowInnovationModal] = useState(false);
   const [lastTransaction, setLastTransaction] = useState<Transaction | null>(null);
+  const [balance, setBalance] = useState(0);
+  const [totalWeight, setTotalWeight] = useState(0);
 
-  // --- AppState tracking for external navigation (Google Maps) ---
+  // --- AI Agent State ---
+  const [isEcoBotOpen, setIsEcoBotOpen] = useState(false);
+  const [initialEcoBotMsg, setInitialEcoBotMsg] = useState<string | undefined>(undefined);
+  const [showSafetyTooltip, setShowSafetyTooltip] = useState(false);
+  const [tooltipText, setTooltipText] = useState("");
+
+  // --- Animation Refs ---
+  const pulseValue = useSharedValue(0);
+
+  useEffect(() => {
+    pulseValue.value = withRepeat(
+      withTiming(1, { duration: 2000 }),
+      -1,
+      false
+    );
+  }, []);
+
+  // --- AppState tracking ---
   /** Tracks if app is returning from background to defer heavy operations */
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const [isReturningFromBackground, setIsReturningFromBackground] = useState(false);
@@ -213,6 +307,60 @@ export default function CollectorHomeScreen() {
       subscription.remove();
     };
   }, [appState, navigationMode, collectorId]);
+
+  // --- Safety Advisor ---
+  useEffect(() => {
+    if (activeJob && (appState === 'request_received' || appState === 'arrived')) {
+      const hazardousFound: string[] = [];
+      const adviceGiven: string[] = [];
+      
+      activeJob.wasteType.forEach(type => {
+        const lowerType = type.toLowerCase();
+        for (const [key, advice] of Object.entries((GameMechanics as any).SAFETY_ADVICE || {})) {
+          if (lowerType.includes(key) && !adviceGiven.includes(advice as string)) {
+            hazardousFound.push(type);
+            adviceGiven.push(advice as string);
+          }
+        }
+      });
+      
+      if (hazardousFound.length > 0) {
+        const briefMsg = `⚠️ Safety: ${hazardousFound[0]}${hazardousFound.length > 1 ? '...' : ''}`;
+        const fullMsg = `⚠️ Safety Alert! This pickup contains ${hazardousFound.join(', ')}.\n\nAdvice: ${adviceGiven.join('\n')}`;
+        
+        setInitialEcoBotMsg(fullMsg);
+        setTooltipText(briefMsg);
+        setShowSafetyTooltip(true);
+        
+        // Auto-hide tooltip after 6 seconds
+        setTimeout(() => setShowSafetyTooltip(false), 6000);
+      }
+    }
+  }, [activeJob, appState]);
+
+  // --- Collector Stats Tracker ---
+  useEffect(() => {
+    if (!collectorId) return;
+
+    const fetchStats = async () => {
+      const { data } = await supabase.from('collectors').select('wallet_balance, total_weight').eq('id', collectorId).single();
+      if (data) {
+        setBalance(Number(data.wallet_balance || 0));
+        setTotalWeight(Number(data.total_weight || 0));
+      }
+    };
+
+    fetchStats();
+
+    const statsChannel = supabase.channel(`collector-stats-${collectorId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'collectors', filter: `id=eq.${collectorId}` }, (payload) => {
+        if (payload.new.wallet_balance !== undefined) setBalance(Number(payload.new.wallet_balance));
+        if (payload.new.total_weight !== undefined) setTotalWeight(Number(payload.new.total_weight));
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(statsChannel); };
+  }, [collectorId]);
 
   useEffect(() => {
     const initializeCollectorId = async () => {
@@ -1111,8 +1259,10 @@ export default function CollectorHomeScreen() {
       Alert.alert("All Done!", "Route completed.");
       // Clear route state immediately so the green line disappears from the map
       setActiveJob(null);
+      setActiveQueue([]);
       setAvailableJobs([]);
       setRouteInfo(null);
+      setRouteMetrics(null);
       stopLocationTracking();
       setAppState('completed'); // Shows the "RM 5" screen
     }
@@ -1438,7 +1588,17 @@ export default function CollectorHomeScreen() {
           <Text style={{ color: colors.textSecondary, textAlign: 'center', marginBottom: 20 }}>
             You saved ~{lastTransaction ? (lastTransaction.weight_kg * GameMechanics.POINTS.CO2_PER_KG).toFixed(1) : 2.5} kg of CO2 in this trip.
           </Text>
-          <TouchableOpacity style={[styles.doneButton, { backgroundColor: colors.primary }]} onPress={() => { setActiveJob(null); setLastTransaction(null); setAppState('idle'); }}><Text style={styles.doneButtonText}>Back to Dashboard</Text></TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.doneButton, { backgroundColor: colors.primary }]} 
+            onPress={() => { 
+              setActiveJob(null); 
+              setActiveQueue([]);
+              setLastTransaction(null); 
+              setAppState('idle'); 
+            }}
+          >
+            <Text style={styles.doneButtonText}>Back to Dashboard</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     </Modal>
@@ -1536,33 +1696,28 @@ export default function CollectorHomeScreen() {
         <Marker coordinate={region} title="You">
           <View style={styles.truckIconContainer}><MaterialCommunityIcons name="truck" size={24} color="#fff" /></View>
         </Marker>
-        {appState === 'request_received' && availableJobs.map((job: Job) => {
-          const isSelected = activeJob?.id === job.id;
-          const isInQueue = activeQueue.find((q: Job) => q.id === job.id);
-          const queueIndex = activeQueue.findIndex((q: Job) => q.id === job.id) + 1;
-
-          const markerDistanceText = (isSelected && routeInfo) ? `${(routeInfo.distance).toFixed(1)} km` : job.distanceLabel;
-          return (
-            <Marker key={job.id} coordinate={{ latitude: job.latitude, longitude: job.longitude }} onPress={() => handleMarkerPress(job)} {...{} as any}>
-              <View style={{ alignItems: 'center' }}>
-                <View style={styles.distanceBadge}><Text style={styles.distanceText}>{markerDistanceText}</Text></View>
-                <View style={[styles.jobMarker, { backgroundColor: colors.overlay }, (isSelected || isInQueue) ? { backgroundColor: isInQueue ? '#4CAF50' : '#FF5722', borderColor: '#FFF', transform: [{ scale: 1.2 }] } : {}]}>
-                  {isInQueue ? (
-                    <Text style={{ color: '#fff', fontWeight: 'bold' }}>{queueIndex}</Text>
-                  ) : (
-                    <MaterialCommunityIcons name="recycle" size={20} color="#fff" />
-                  )}
-                </View>
-              </View>
-            </Marker>
-          );
-        })}
+        {appState === 'request_received' && availableJobs.map((job: Job) => (
+          <AnimatedMarker
+            key={job.id}
+            job={job}
+            isSelected={activeJob?.id === job.id}
+            isInQueue={!!activeQueue.find((q: Job) => q.id === job.id)}
+            queueIndex={activeQueue.findIndex((q: Job) => q.id === job.id) + 1}
+            markerDistanceText={(activeJob?.id === job.id && routeInfo) ? `${(routeInfo.distance).toFixed(1)} km` : job.distanceLabel}
+            pulseValue={pulseValue}
+            colors={colors}
+            onPress={(j) => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              handleMarkerPress(j);
+            }}
+          />
+        ))}
         {(appState === 'navigating' || appState === 'driving' || appState === 'arrived') && activeJob && (
           <Marker coordinate={{ latitude: activeJob.latitude, longitude: activeJob.longitude }} title="Pickup">
             <View style={styles.jobMarker}><MaterialCommunityIcons name="recycle" size={20} color="#fff" /></View>
           </Marker>
         )}
-        {(appState === 'request_received' || appState === 'navigating' || appState === 'driving' || appState === 'arrived') && activeJob && (
+        {(appState === 'request_received' || appState === 'navigating' || appState === 'driving') && activeJob && (
           <MapViewDirections
             origin={{ latitude: region.latitude, longitude: region.longitude }}
             destination={
@@ -1624,20 +1779,51 @@ export default function CollectorHomeScreen() {
 
       {showContributorListModal && renderContributorListModal()}
 
-      {appState !== 'driving' && (
-        <View style={[styles.topRightButtons, { top: 60 + insets.top }]}>
-          <TouchableOpacity style={styles.floatingCircleBtn} onPress={handleMapTypeToggle}>
-            <Ionicons name="layers" size={24} color="#333" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.floatingCircleBtn} onPress={() => {
-            if (mapRef.current) {
-              mapRef.current.animateToRegion(region, 500);
-            }
-          }}>
-            <Ionicons name="navigate" size={24} color="#333" />
+      {/* Top Right Utility Buttons */}
+      <View style={[styles.topRightButtons, { top: 60 + insets.top }]}>
+        {appState !== 'driving' && (
+          <>
+            <TouchableOpacity style={styles.floatingCircleBtn} onPress={handleMapTypeToggle}>
+              <Ionicons name="layers" size={24} color="#333" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.floatingCircleBtn} onPress={() => {
+              if (mapRef.current) {
+                mapRef.current.animateToRegion(region, 500);
+              }
+            }}>
+              <Ionicons name="navigate" size={24} color="#333" />
+            </TouchableOpacity>
+          </>
+        )}
+
+        {/* EcoBot / AI Trigger Button */}
+        <View style={{ alignItems: 'flex-end' }}>
+          {showSafetyTooltip && (
+            <TouchableOpacity 
+              activeOpacity={0.9}
+              style={[styles.safetyTooltip, { backgroundColor: isDark ? colors.card : '#FFF' }]}
+              onPress={() => {
+                setShowSafetyTooltip(false);
+                setIsEcoBotOpen(true);
+              }}
+            >
+              <Text style={[styles.safetyTooltipText, { color: colors.text }]}>{tooltipText}</Text>
+              <View style={[styles.tooltipArrow, { borderTopColor: isDark ? colors.card : '#FFF' }]} />
+            </TouchableOpacity>
+          )}
+          
+          <TouchableOpacity 
+            style={styles.floatingCircleBtn} 
+            onPress={() => {
+              setShowSafetyTooltip(false);
+              setInitialEcoBotMsg(undefined);
+              setIsEcoBotOpen(true);
+            }}
+          >
+            <Text style={{ fontSize: 24 }}>🤖</Text>
           </TouchableOpacity>
         </View>
-      )}
+      </View>
       {appState === 'idle' && (
         <View style={styles.idleOverlay} pointerEvents="box-none">
           <TouchableOpacity onPress={handleSearchNow} activeOpacity={0.8}>
@@ -1683,6 +1869,42 @@ export default function CollectorHomeScreen() {
           </TouchableOpacity>
         </View>
       )}
+
+
+
+      <EcoBot 
+        visible={isEcoBotOpen} 
+        onClose={() => setIsEcoBotOpen(false)} 
+        initialMessage={initialEcoBotMsg}
+        userStats={{ 
+          points: balance, 
+          savedCO2: (totalWeight * GameMechanics.POINTS.CO2_PER_KG).toFixed(1), 
+          recycled: totalWeight.toFixed(1) 
+        }}
+        onViewProfile={() => {
+          setIsEcoBotOpen(false);
+          router.push("/(tabs)/account");
+        }}
+        onOpenCart={() => {
+          setIsEcoBotOpen(false);
+          router.push("/(tabs)/earnings");
+        }}
+        onTrack={() => {
+          setIsEcoBotOpen(false);
+          if (mapRef.current) mapRef.current.animateToRegion(region, 500);
+        }}
+        onOptimizeRoute={(mode) => {
+          setIsEcoBotOpen(false);
+          setAlgorithmMode(mode);
+          reoptimizeRoute(mode);
+        }}
+        onMarkArrived={() => {
+          setIsEcoBotOpen(false);
+          if (appState === 'driving' || appState === 'navigating') {
+            handleArrived();
+          }
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -1826,6 +2048,40 @@ const styles = StyleSheet.create({
 
   chatHeader: { flexDirection: 'row', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: '#eee' },
   chatTitle: { fontSize: 18, fontWeight: 'bold', flex: 1, marginLeft: 10 },
+
+  // --- SAFETY TOOLTIP ---
+  safetyTooltip: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    marginBottom: 10,
+    maxWidth: 200,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+    position: 'relative',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
+  },
+  safetyTooltipText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  tooltipArrow: {
+    position: 'absolute',
+    bottom: -8,
+    right: 20,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 8,
+    borderRightWidth: 8,
+    borderTopWidth: 8,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+  },
+
   closeChatBtn: { padding: 5 },
   msgBubble: { padding: 12, borderRadius: 15, marginBottom: 10, maxWidth: '80%' },
   msgBubbleMe: { alignSelf: 'flex-end', backgroundColor: '#DCF8C6' },
@@ -1860,6 +2116,55 @@ const styles = StyleSheet.create({
   truckIconContainer: { width: 80, height: 80, backgroundColor: 'rgba(56, 118, 29, 0.3)', borderRadius: 40, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
   distanceBadge: { position: 'absolute', top: 10, right: 10, backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
   distanceText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
+  
+  // --- NEW PIN MARKER ---
+  jobMarkerContainer: {
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 8,
+  },
+  jobMarkerPin: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pinPointer: {
+    width: 0,
+    height: 0,
+    backgroundColor: 'transparent',
+    borderStyle: 'solid',
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderTopWidth: 8,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    marginTop: -2,
+  },
+  pulseRing: {
+    position: 'absolute',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 2,
+  },
+  tapHint: {
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginTop: 4,
+  },
+  tapHintText: {
+    color: '#fff',
+    fontSize: 8,
+    fontWeight: '900',
+  },
+
   jobMarker: { alignItems: 'center' },
   topRightButtons: { position: 'absolute', right: 20, gap: 10, alignItems: 'center' },
   idleOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'flex-end', alignItems: 'center', paddingBottom: 110 },

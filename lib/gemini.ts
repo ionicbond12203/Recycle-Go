@@ -345,99 +345,248 @@ export async function getDailyTip(language: 'en' | 'zh' | 'ms' = 'en'): Promise<
 
 export async function askEcoAgent(prompt: string, history: ChatMessage[] = [], userStats?: { points: number, savedCO2: string, recycled: string }): Promise<string> {
     const API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY || "";
-    const contents = history.map(m => ({
+    let contents: any[] = history.map(m => ({
         role: m.sender === 'user' ? 'user' : 'model',
         parts: [{ text: m.text }]
     }));
     contents.push({ role: "user", parts: [{ text: prompt }] });
 
-    const systemText = `You are the Recycle-Go smart assistant. If the user's instructions contain clear business intent (checkout, check stats, rush order, scan), be sure to call the corresponding function, do not be verbose.
-The current user's real environmental data is as follows (if the user asks, tell them in a gentle encouraging tone with emojis, do not call any tools to answer directly):
-- Eco Points: ${userStats?.points || 0}
+    const systemText = `You are the Recycle-Go smart autonomous agent. You can execute tools. 
+If the user's instructions contain clear business intent (checkout, check stats, scan, route optimization, arrival), call the corresponding function. 
+When you receive the function response, formulate a friendly conversational reply.
+
+The current user's real environmental and financial data is as follows:
+- Eco Points / Balance: ${userStats?.points || 0}
 - Total CO2 Saved: ${userStats?.savedCO2 || '0kg'}
-- Total Recycled Count: ${userStats?.recycled || '0'} times`;
+- Total Weight Recycled: ${userStats?.recycled || '0'} kg
 
-    const payload = {
-        systemInstruction: { parts: [{ text: systemText }] },
-        contents: contents,
-        tools: [{
-            functionDeclarations: [
-                {
-                    name: "schedulePickup",
-                    description: "Call when the user explicitly states they have recyclables at home to be collected or want to request a pickup. Must extract the type of material they want to recycle.",
-                    parameters: {
-                        type: "OBJECT",
-                        properties: {
-                            materialType: { type: "STRING", description: "Example: plastic bottles, cardboard boxes, etc." }
-                        },
-                        required: ["materialType"]
-                    }
-                },
-                {
-                    name: "openScanner",
-                    description: "Call when the user asks to scan, take an image to identify an item, or determines if it's recyclable. Used to open the camera for the user.",
-                    parameters: { type: "OBJECT", properties: {} }
-                },
-                {
-                    name: "openCart",
-                    description: "Call when the user asks to enter the cart, view the list, checkout, or go to the dispatch page.",
-                    parameters: { type: "OBJECT", properties: {} }
-                },
-                {
-                    name: "viewProfile",
-                    description: "Call when the user asks to view their history, navigate to the profile details page, or view account settings.",
-                    parameters: { type: "OBJECT", properties: {} }
-                },
-                {
-                    name: "trackDriver",
-                    description: "Call when the user asks to track the driver's location, view the map, rush an order, or contact the driver.",
-                    parameters: { type: "OBJECT", properties: {} }
+ROLES:
+- If the user mentions "Earnings", "Balance", or "Weight", use the data above.
+- If the user mentions "Navigation", "Route", or "Arrived", they are likely a Collector (Driver). Assist them with Logistics.`;
+
+    const tools = [{
+        functionDeclarations: [
+            {
+                name: "schedulePickup",
+                description: "Call when the user explicitly states they have recyclables at home to be collected or want to request a pickup.",
+                parameters: {
+                    type: "OBJECT",
+                    properties: {
+                        materialType: { type: "STRING", description: "Example: plastic bottles, cardboard boxes, etc." }
+                    },
+                    required: ["materialType"]
                 }
-            ]
-        }]
-    };
+            },
+            {
+                name: "openScanner",
+                description: "Open the camera to scan items or take photos.",
+                parameters: { type: "OBJECT", properties: {} }
+            },
+            {
+                name: "openCart",
+                description: "Open the user's cart or earnings page.",
+                parameters: { type: "OBJECT", properties: {} }
+            },
+            {
+                name: "viewProfile",
+                description: "Go to the profile/account settings page.",
+                parameters: { type: "OBJECT", properties: {} }
+            },
+            {
+                name: "trackDriver",
+                description: "View the map to track the current pickup progress.",
+                parameters: { type: "OBJECT", properties: {} }
+            },
+            {
+                name: "optimizeRoute",
+                description: "COLLECTOR ONLY: Re-optimize the current pickup sequence. Can choose standard (fastest) or green (eco-friendly) mode.",
+                parameters: {
+                    type: "OBJECT",
+                    properties: {
+                        mode: { type: "STRING", enum: ["standard", "green"], description: "The optimization logic to use." }
+                    },
+                    required: ["mode"]
+                }
+            },
+            {
+                name: "setArrived",
+                description: "COLLECTOR ONLY: Call when the driver says they have arrived at the destination/pickup point.",
+                parameters: { type: "OBJECT", properties: {} }
+            },
+            {
+                name: "checkEarnings",
+                description: "Provide a summary of the current earnings, weights, and environmental impact.",
+                parameters: { type: "OBJECT", properties: {} }
+            }
+        ]
+    }];
 
-    try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`, {
-            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
-        });
-        const data = await response.json();
-        
-        // If API returns an error (e.g., incorrect model name, insufficient quota), display it directly on the screen
-        if (!response.ok) {
-            console.error("API returned error:", data);
-            return `⚠️ API encountered an error: ${data.error?.message || JSON.stringify(data)}`;
+    const models = ["gemini-2.0-flash", "gemini-1.5-flash"];
+
+    let actionTags: string[] = [];
+
+    // Autonomous loop: allow up to 3 iterations
+    for (let i = 0; i < 3; i++) {
+        const payload = {
+            systemInstruction: { parts: [{ text: systemText }] },
+            contents,
+            tools
+        };
+
+        let response: any;
+        let data: any;
+        let success = false;
+
+        for (const modelId of models) {
+            try {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${API_KEY}`;
+                response = await fetch(url, {
+                    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
+                });
+                data = await response.json();
+
+                if (response.ok) {
+                    success = true;
+                    break;
+                } else if (response.status === 429) {
+                    console.log(`⚠️ Quota hit for ${modelId} in Agent loop, trying next...`);
+                    continue; 
+                } else {
+                    console.error(`API Error (${modelId}):`, data);
+                    return `⚠️ API encountered an error: ${data.error?.message || JSON.stringify(data)}`;
+                }
+            } catch (e) {
+                console.error(`Fetch error for ${modelId}:`, e);
+            }
         }
 
-        const candidate = data?.candidates?.[0];
+        if (!success) {
+            return "Sorry, all my brain cores are busy right now! 🧠💨 Please try again in 10-15 seconds.";
+        }
 
-        if (candidate?.content?.parts?.[0]?.functionCall) {
-            const fnCall = candidate.content.parts[0].functionCall;
-            if (fnCall.name === "schedulePickup") {
-                const material = fnCall.args.materialType;
-                console.log(`\n\n🎯 [AGENT FUNCTION INTERCEPT]: Intercepted business intent! Extracted material type -> ${material}\n\n`);
-                return `✅ Got it, I have directly triggered the dispatch interceptor program and called a driver to collect [${material}]!`;
-            }
-            if (fnCall.name === "openScanner") {
-                console.log(`\n\n🎯 [AGENT FUNCTION INTERCEPT]: Intercepted auto-scan intent!\n\n`);
-                return `[ACTION_SCAN]✅ No problem, opening the AI scan camera for you! Please point it at your item 📸`;
-            }
-            if (fnCall.name === "openCart") {
-                console.log(`\n\n🎯 [AGENT FUNCTION INTERCEPT]: Intercepted open cart intent!\n\n`);
-                return `[ACTION_OPEN_CART]🛒 Taking you to the checkout list page...`;
-            }
-            if (fnCall.name === "viewProfile") {
-                console.log(`\n\n🎯 [AGENT FUNCTION INTERCEPT]: Intercepted view profile intent!\n\n`);
-                return `[ACTION_VIEW_PROFILE]📊 Opening your personal eco-stats dashboard...`;
-            }
-            if (fnCall.name === "trackDriver") {
-                console.log(`\n\n🎯 [AGENT FUNCTION INTERCEPT]: Intercepted track driver intent!\n\n`);
-                return `[ACTION_TRACK_DRIVER]🚚 Taking you to the real-time map to track the driver's location!`;
+            const candidate = data?.candidates?.[0];
+            const part = candidate?.content?.parts?.[0];
+
+            if (part?.functionCall) {
+                const fnCall = part.functionCall;
+                console.log(`\n\n🎯 [AGENT AUTONOMOUS MODE]: Executing ${fnCall.name} with args ${JSON.stringify(fnCall.args || {})}\n\n`);
+
+                let functionResult: any = { success: true };
+
+                if (fnCall.name === "schedulePickup") {
+                    functionResult = { status: "driver_dispatched", material: fnCall.args.materialType };
+                } else if (fnCall.name === "openScanner") {
+                    actionTags.push("[ACTION_SCAN]");
+                    functionResult = { status: "camera_opened" };
+                } else if (fnCall.name === "openCart") {
+                    actionTags.push("[ACTION_OPEN_CART]");
+                    functionResult = { status: "cart_opened" };
+                } else if (fnCall.name === "viewProfile") {
+                    actionTags.push("[ACTION_VIEW_PROFILE]");
+                    functionResult = { status: "profile_opened", points: userStats?.points || 0 };
+                } else if (fnCall.name === "trackDriver") {
+                    actionTags.push("[ACTION_TRACK_DRIVER]");
+                    functionResult = { status: "map_opened_driver_location_synced" };
+                }
+
+                // Append model's tool call thought to history
+                contents.push({ role: "model", parts: [{ functionCall: fnCall }] });
+
+                // Construct the correct functionResponse payload structure for Gemini REST API
+                // We MUST pass back an object matching the schema.
+                contents.push({
+                    role: "function",
+                    parts: [{
+                        functionResponse: {
+                            name: fnCall.name,
+                            response: { name: fnCall.name, content: functionResult }
+                        }
+                    }]
+                });
+
+                // The loop iterates, letting Gemini observe the function response and continue.
+            } else if (part?.text) {
+                // Reached final text output
+                let finalOutput = part.text;
+                if (actionTags.length > 0) {
+                    finalOutput = `${actionTags.join("")}${finalOutput}`;
+                }
+                return finalOutput;
+            } else {
+                return "🤔 I'm not sure what to say.";
             }
         }
-        return candidate?.content?.parts?.[0]?.text || "🤔 I'm not sure what to say.";
-    } catch (e) {
-        console.error("Agent crashed:", e);
-        return "Sorry, my smart brain just short-circuited 📡";
+    return "🔄 Agent reached iteration limit.";
+}
+
+// 语音转动作处理：使用截图中的 Gemini 3 Flash 模型
+export async function processVoiceCommand(base64Audio: string, mimeType: string = "audio/mp4"): Promise<string> {
+    const API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY || "";
+    const models = ["gemini-2.0-flash", "gemini-1.5-flash"];
+    
+    const prompt = `You are a voice command parser for a recycling app (Recycle-Go). 
+Listen to the user's audio and extract their intent.
+Map the intent to exactly ONE of these actions:
+- [ACTION_SCAN] (if they want to use their camera, scan an item, or take a photo)
+- [ACTION_OPEN_CART] (if they mention cart, checkout, or dispatch)
+- [ACTION_VIEW_PROFILE] (if they mention profile, history, or points)
+- [ACTION_TRACK_DRIVER] (if they mention tracking, driver, or map)
+- [ACTION_REOPTIMIZE_FAST] (if they want to re-optimize route for speed/fastest)
+- [ACTION_REOPTIMIZE_GREEN] (if they want to re-optimize route for green/eco-friendly)
+- [ACTION_ARRIVED] (if they say they have arrived or reached the destination)
+- [ACTION_EARNINGS] (if they ask about their earnings, wallet, or collected weight)
+- schedulePickup (if they explicitly want to schedule a pickup for their recyclables)
+- chat (if they are just asking a general question, like "how to recycle X", or just chatting)
+
+Return ONLY a valid JSON object in this exact format:
+{
+  "action": "one_of_the_tags_above",
+  "material": "extracted_material_if_pickup_otherwise_empty",
+  "responseMsg": "Friendly conversational response acknowledging their intent or answering their question in the same language. Keep it brief. Use emojis! e.g. 'Opening the scanner for your plastic bottle! 📸'"
+}`;
+
+    for (const modelId of models) {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${API_KEY}`;
+        const payload = {
+            contents: [{
+                role: "user",
+                parts: [
+                    { text: prompt },
+                    { inlineData: { mimeType, data: base64Audio } }
+                ]
+            }],
+            generationConfig: { responseMimeType: "application/json" }
+        };
+
+        try {
+            const response = await fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                if (response.status === 429) {
+                    console.log(`⚠️ Quota hit for ${modelId}, checking alternatives...`);
+                    if (modelId === models[models.length - 1]) {
+                        const retryInfo = data.error?.details?.find((d: any) => d['@type']?.includes('RetryInfo'));
+                        const retrySeconds = retryInfo?.retryDelay ? parseInt(retryInfo.retryDelay) : 5;
+                        return JSON.stringify({ error: true, code: 429, retryAfter: retrySeconds, message: "AI is busy. Please wait a moment." });
+                    }
+                    continue; 
+                }
+                console.error(`Audio API Error (${modelId}):`, data);
+                return JSON.stringify({ error: true, message: data.error?.message || "API Error" });
+            }
+
+            const textResult = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+            return textResult || "{}"; 
+        } catch (e) {
+            console.error(`Audio Parsing Error (${modelId}):`, e);
+            if (modelId === models[models.length - 1]) return JSON.stringify({ error: true, message: "Network crash" });
+        }
     }
+    return JSON.stringify({ error: true, message: "All AI models are busy." });
 }

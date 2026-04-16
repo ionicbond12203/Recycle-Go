@@ -45,6 +45,7 @@ export default function TrackingView({
     const { colors, isDark } = useTheme();
     const insets = useSafeAreaInsets();
     const mapRef = React.useRef<MapView>(null);
+    const markerRef = React.useRef<any>(null);
 
     // Auto-focus on user location when first loaded (before collector tracking)
     React.useEffect(() => {
@@ -68,6 +69,13 @@ export default function TrackingView({
         }
     }, [collectorLocation, userLocation]);
 
+    // Smoothly animate marker when location updates
+    React.useEffect(() => {
+        if (collectorLocation && markerRef.current) {
+            markerRef.current.animateMarkerToCoordinate(collectorLocation, 1000);
+        }
+    }, [collectorLocation]);
+
     const renderMapContent = () => (
         <>
             {collectorLocation && userLocation && (
@@ -82,7 +90,11 @@ export default function TrackingView({
                 />
             )}
             {collectorLocation && (
-                <Marker coordinate={collectorLocation} title="Collector">
+                <Marker 
+                    ref={markerRef}
+                    coordinate={collectorLocation} 
+                    title="Collector"
+                >
                     <View style={[styles.truckMarker, { backgroundColor: colors.truckMarkerBg }]}>
                         <MaterialCommunityIcons name="truck-delivery" size={20} color={colors.textInverse} />
                     </View>

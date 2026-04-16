@@ -21,5 +21,12 @@ export const GameMechanics = {
             zoom: 19.5,
             altitude: 15
         }
+    },
+    SAFETY_ADVICE: {
+        'glass': 'Wear heavy-duty gloves to avoid cuts! 🧤',
+        'metal': 'Watch out for sharp edges! 🗡️',
+        'battery': 'Handle carefully, avoid puncturing! 🔋',
+        'electronics': 'Handle carefully, avoid puncturing! 🔋',
+        'e-waste': 'Handle carefully, avoid puncturing! 🔋',
     }
 };
