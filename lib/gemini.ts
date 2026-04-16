@@ -176,7 +176,7 @@ export function askGeminiStream(
                             .then(resolve)
                             .catch(reject);
                     } else {
-                        // both failed, reject upward to EcoBot.tsx so LocalLLM handles it
+                        // both failed, reject upward to EcoBot.tsx
                         reject(new Error("RATE_LIMIT"));
                     }
                 } else {
