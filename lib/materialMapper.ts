@@ -250,11 +250,11 @@ export function mapLabelsToMaterial(labels: string[]): MaterialInfo {
     const specificMatch = findSpecific([]);
     return {
         material: 'General Waste',
-        points: 12,
+        points: 0,
         name: `Unidentified${specificMatch}`,
         recyclable: false,
         instruction: 'Material could not be identified. Please discard in general waste.',
-        co2: 12
+        co2: 0
     };
 }
 
