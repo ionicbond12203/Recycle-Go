@@ -341,15 +341,23 @@ export default function ContributorPage() {
           setCart([]); // Clear cart as well
           setIsActive(false);
           setCurrentScreen('home');
-          // No alert here to allow for the verification modal's alert to handle it if applicable,
-          // but if it's a remote completion, the redirect is smooth.
+          // Reset contributor status in DB to 'idle' so they can send a new request later
+          // Use a small delay to avoid conflicting with the collector's status update
+          setTimeout(async () => {
+            if (deviceId) {
+              await supabase.from('contributors').update({ status: 'idle', collector_id: null }).eq('id', deviceId);
+              console.log('Contributor status reset to idle after completion');
+            }
+          }, 2000);
         } else if (newStatus === 'active' && currentScreen === 'tracking') {
           // If collector unassigns, go back to cart/setup
-          clearTrackingState();
-          setCurrentScreen('cart');
-          // Keep isActive true because the request is still there (status: active in DB)
-          // or if the whole thing is cancelled, we handles that.
-          Alert.alert("Pickup Cancelled", "The collector is no longer assigned to this session.");
+          if (currentCollectorId !== null) {
+            clearTrackingState();
+            setCurrentScreen('cart');
+            // Keep isActive true because the request is still there (status: active in DB)
+            // or if the whole thing is cancelled, we handles that.
+            Alert.alert("Pickup Cancelled", "The collector is no longer assigned to this session.");
+          }
         } else if (newStatus === 'idle') {
           setIsActive(false);
           clearTrackingState();
@@ -358,7 +366,7 @@ export default function ContributorPage() {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [deviceId, currentScreen]);
+  }, [deviceId, currentScreen, currentCollectorId]);
 
   const analyzeImage = async (base64: string, uri: string) => {
     setAnalyzing(true);
@@ -552,7 +560,7 @@ export default function ContributorPage() {
 
     try {
       const { error } = await supabase.from("contributors").upsert(
-        [{ id: deviceId, latitude: currentLocation.latitude, longitude: currentLocation.longitude, status: 'active' }],
+        [{ id: deviceId, latitude: currentLocation.latitude, longitude: currentLocation.longitude, status: 'active', collector_id: null }],
         { onConflict: "id" }
       );
       if (error) throw error;
@@ -674,6 +682,9 @@ export default function ContributorPage() {
 
       // Clear Tracking State using helper
       clearTrackingState();
+
+      // Reset contributor status in DB to 'idle' so they can send a new request
+      await supabase.from('contributors').update({ status: 'idle', collector_id: null }).eq('id', user.id);
 
       setCurrentScreen('home');
       Alert.alert(t('actions.collectionVerified'), t('actions.youEarnedPoints').replace('{points}', earnedPoints.toString()).replace('{weight}', weight));
@@ -873,6 +884,11 @@ export default function ContributorPage() {
             // Guest restriction - must sign in to request pickup
             if (isGuest || !user) {
               promptGuestSignIn();
+              return;
+            }
+            // If already active or assigned, bypass location upload to prevent status reset in DB
+            if (isActive || currentCollectorId) {
+              setCurrentScreen('tracking');
               return;
             }
             // Trigger location share automatically

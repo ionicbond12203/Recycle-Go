@@ -71,8 +71,18 @@ export default function CartView({ cart, onUpdateQuantity, onAddMore, onReviewAd
             </ScrollView>
 
             <View style={[styles.cartFooter, { borderTopColor: colors.divider, backgroundColor: colors.background }]}>
-                <TouchableOpacity style={[styles.primaryButton, { backgroundColor: colors.primary, shadowColor: colors.primary }]} onPress={onReviewAddress}>
-                    <Text style={[styles.primaryButtonText, { color: colors.textInverse }]}>{t('actions.reviewAddress')}</Text>
+                <TouchableOpacity
+                    style={[
+                        styles.primaryButton,
+                        { backgroundColor: colors.primary, shadowColor: colors.primary },
+                        (!isLocked && cart.length === 0) && { opacity: 0.4 }
+                    ]}
+                    onPress={onReviewAddress}
+                    disabled={!isLocked && cart.length === 0}
+                >
+                    <Text style={[styles.primaryButtonText, { color: colors.textInverse }]}>
+                        {isLocked ? "Track Active Request" : cart.length === 0 ? t('cart.addItemsFirst') || 'Add items to cart first' : t('actions.reviewAddress')}
+                    </Text>
                 </TouchableOpacity>
             </View>
         </View>
