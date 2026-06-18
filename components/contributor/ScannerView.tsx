@@ -3,7 +3,7 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import { useKeepAwake } from "expo-keep-awake";
 import React, { useEffect, useRef, useState } from "react";
-import { Dimensions, Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Dimensions, Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Animated, {
     Easing,
     useAnimatedStyle,
@@ -15,7 +15,7 @@ import Animated, {
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useTheme } from "../../contexts/ThemeContext";
 
-const { width, height } = Dimensions.get("window");
+const { width } = Dimensions.get("window");
 const SCAN_FRAME_SIZE = width * 0.7;
 
 interface ScannerViewProps {
@@ -73,6 +73,8 @@ export default function ScannerView({ onScan, onClose }: ScannerViewProps) {
     };
 
     const handlePickImage = async () => {
+        if (isScanning) return;
+        setIsScanning(true);
         try {
             const result = await ImagePicker.launchImageLibraryAsync({
                 mediaTypes: ['images'],
@@ -83,9 +85,12 @@ export default function ScannerView({ onScan, onClose }: ScannerViewProps) {
 
             if (!result.canceled && result.assets[0].base64) {
                 onScan(result.assets[0]);
+            } else {
+                setIsScanning(false);
             }
         } catch (error) {
             console.error("Error picking image:", error);
+            setIsScanning(false);
         }
     };
 
@@ -116,6 +121,11 @@ export default function ScannerView({ onScan, onClose }: ScannerViewProps) {
                             <Text style={styles.permissionButtonText}>{t('actions.openSettings')}</Text>
                         </TouchableOpacity>
                     )}
+
+                    <TouchableOpacity onPress={handlePickImage} style={styles.permissionGalleryButton} disabled={isScanning}>
+                        <Ionicons name="images-outline" size={20} color="#fff" />
+                        <Text style={styles.permissionGalleryText}>Choose from gallery</Text>
+                    </TouchableOpacity>
                 </View>
             </View>
         );
@@ -151,6 +161,7 @@ export default function ScannerView({ onScan, onClose }: ScannerViewProps) {
                 {/* Bottom Spacer */}
                 <View style={styles.maskRow}>
                     <Text style={styles.instructionText}>{t('scanner.pointCamera')}</Text>
+                    <Text style={styles.helperText}>Use gallery for a reliable emulator demo.</Text>
                 </View>
             </View>
 
@@ -162,14 +173,15 @@ export default function ScannerView({ onScan, onClose }: ScannerViewProps) {
 
                 <TouchableOpacity
                     onPress={handleTakePicture}
-                    style={[styles.captureButton, { opacity: cameraReady ? 1 : 0.5 }]}
+                    style={[styles.captureButton, { opacity: cameraReady && !isScanning ? 1 : 0.5 }]}
                     disabled={isScanning || !cameraReady}
                 >
-                    <View style={styles.captureInner} />
+                    {isScanning ? <ActivityIndicator color="#fff" /> : <View style={styles.captureInner} />}
                 </TouchableOpacity>
 
-                <TouchableOpacity onPress={handlePickImage} style={styles.galleryButton}>
+                <TouchableOpacity onPress={handlePickImage} style={styles.galleryButton} disabled={isScanning}>
                     <Ionicons name="images-outline" size={28} color="#fff" />
+                    <Text style={styles.galleryLabel}>Gallery</Text>
                 </TouchableOpacity>
             </View>
         </View>
@@ -237,6 +249,12 @@ const styles = StyleSheet.create({
         marginTop: 20,
         fontWeight: '600',
     },
+    helperText: {
+        color: 'rgba(255,255,255,0.8)',
+        fontSize: 13,
+        marginTop: 8,
+        fontWeight: '600',
+    },
     controls: {
         position: 'absolute',
         bottom: 50,
@@ -267,10 +285,16 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     galleryButton: {
-        width: 50,
+        width: 74,
         height: 50,
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    galleryLabel: {
+        color: '#fff',
+        fontSize: 11,
+        fontWeight: '700',
+        marginTop: 2,
     },
     permissionButton: {
         padding: 15,
@@ -281,5 +305,18 @@ const styles = StyleSheet.create({
         color: 'white',
         fontSize: 16,
         fontWeight: 'bold',
+    },
+    permissionGalleryButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        padding: 14,
+        marginTop: 12,
+    },
+    permissionGalleryText: {
+        color: '#fff',
+        fontSize: 15,
+        fontWeight: '700',
+        textDecorationLine: 'underline',
     },
 });

@@ -1,6 +1,6 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import React from "react";
-import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -30,8 +30,6 @@ export default function TrackingView({
     userLocation,
     collectorLocation,
     routeInfo,
-    loading,
-    onShareLocation,
     onOpenChat,
     onCallCollector,
     onBack,
@@ -42,7 +40,7 @@ export default function TrackingView({
     isRequestActive = false
 }: TrackingViewProps) {
     const { t } = useLanguage();
-    const { colors, isDark } = useTheme();
+    const { colors } = useTheme();
     const insets = useSafeAreaInsets();
     const mapRef = React.useRef<MapView>(null);
     const markerRef = React.useRef<any>(null);
@@ -107,12 +105,37 @@ export default function TrackingView({
     const renderIdleSheet = () => (
         <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 20, backgroundColor: colors.card, shadowColor: colors.shadow }]}>
             <View style={[styles.dragHandle, { backgroundColor: colors.divider }]} />
-            <View style={styles.sheetHeader}>
-                <Text style={[styles.sheetTitle, { color: colors.text }]}>{t('tracking.confirmPickup')}</Text>
+            <View style={[styles.statusIcon, { backgroundColor: colors.badgeBackground }]}>
+                <MaterialCommunityIcons name="map-marker-radius" size={30} color={colors.primary} />
             </View>
+            <Text style={[styles.sheetTitle, { color: colors.text }]}>No active pickup yet</Text>
             <Text style={[styles.confirmText, { color: colors.textSecondary }]}>
-                Your location will be shared automatically when you request a pickup from the cart.
+                Add recyclable items to your cart, then request a pickup to share your location with nearby collectors.
             </Text>
+            <TouchableOpacity style={[styles.mainActionButton, { backgroundColor: colors.primary, shadowColor: colors.primary }]} onPress={onBack}>
+                <MaterialCommunityIcons name="cart-arrow-right" size={20} color={colors.textInverse} />
+                <Text style={[styles.mainActionText, { color: colors.textInverse }]}>Back to cart</Text>
+            </TouchableOpacity>
+        </View>
+    );
+
+    const renderWaitingSheet = () => (
+        <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 20, backgroundColor: colors.card, shadowColor: colors.shadow }]}>
+            <View style={[styles.dragHandle, { backgroundColor: colors.divider }]} />
+            <View style={[styles.statusIcon, { backgroundColor: colors.trackingBlueLight }]}>
+                <ActivityIndicator color={colors.trackingBlue} />
+            </View>
+            <Text style={[styles.sheetTitle, { color: colors.text }]}>Pickup request sent</Text>
+            <Text style={[styles.confirmText, { color: colors.textSecondary }]}>
+                Waiting for a collector to accept your request. Keep this screen open during the demo to show live assignment.
+            </Text>
+            <View style={[styles.waitingPanel, { backgroundColor: colors.backgroundSecondary }]}>
+                <MaterialCommunityIcons name="truck-fast" size={24} color={colors.trackingBlue} />
+                <View style={{ flex: 1 }}>
+                    <Text style={[styles.waitingTitle, { color: colors.text }]}>Searching nearby collectors</Text>
+                    <Text style={[styles.waitingSub, { color: colors.textSecondary }]}>Your pickup location is already shared.</Text>
+                </View>
+            </View>
         </View>
     );
 
@@ -149,7 +172,7 @@ export default function TrackingView({
                 <Image source={{ uri: collectorAvatar || "https://i.pravatar.cc/150?u=default" }} style={[styles.driverAvatar, { backgroundColor: colors.border }]} />
                 <View style={{ flex: 1, marginLeft: 15 }}>
                     <Text style={[styles.driverName, { color: colors.text }]}>{collectorName || "Unknown Collector"}</Text>
-                    <Text style={[styles.driverPlate, { color: colors.textSecondary }]}>JQV 8821 • Toyota Hilux</Text>
+                    <Text style={[styles.driverPlate, { color: colors.textSecondary }]}>JQV 8821 - Toyota Hilux</Text>
                 </View>
 
                 <TouchableOpacity style={[styles.callBtn, { backgroundColor: colors.background }]} onPress={onOpenChat}>
@@ -181,9 +204,11 @@ export default function TrackingView({
                 {renderMapContent()}
             </MapView>
 
-            {/* Back button removed */}
+            <TouchableOpacity style={[styles.backButtonAbsolute, { top: insets.top + 12, backgroundColor: colors.card }]} onPress={onBack}>
+                <Ionicons name="chevron-back" size={24} color={colors.text} />
+            </TouchableOpacity>
 
-            {collectorLocation ? renderTrackingSheet() : renderIdleSheet()}
+            {collectorLocation ? renderTrackingSheet() : isRequestActive ? renderWaitingSheet() : renderIdleSheet()}
         </View>
     );
 }
@@ -193,10 +218,14 @@ const styles = StyleSheet.create({
     bottomSheet: { position: 'absolute', bottom: 0, left: 0, right: 0, borderTopLeftRadius: 25, borderTopRightRadius: 25, padding: 20, shadowOpacity: 0.15, shadowRadius: 10, elevation: 20 },
     dragHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
     sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-    sheetTitle: { fontSize: 20, fontWeight: 'bold' },
-    confirmText: { marginBottom: 20 },
-    mainActionButton: { paddingVertical: 16, borderRadius: 15, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
+    statusIcon: { width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center', alignSelf: 'center', marginBottom: 14 },
+    sheetTitle: { fontSize: 22, fontWeight: '900', textAlign: 'center', marginBottom: 8 },
+    confirmText: { marginBottom: 20, textAlign: 'center', lineHeight: 21 },
+    mainActionButton: { minHeight: 54, paddingVertical: 16, borderRadius: 15, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
     mainActionText: { fontSize: 18, fontWeight: 'bold' },
+    waitingPanel: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 18, padding: 14 },
+    waitingTitle: { fontSize: 15, fontWeight: '900' },
+    waitingSub: { fontSize: 12, fontWeight: '600', marginTop: 2 },
     backButtonAbsolute: { position: 'absolute', left: 20, padding: 8, borderRadius: 12, shadowOpacity: 0.1, elevation: 2 },
     trackingHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
     etaTime: { fontSize: 28, fontWeight: '800' },

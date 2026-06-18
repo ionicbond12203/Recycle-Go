@@ -1,17 +1,16 @@
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { ActivityIndicator, Alert, Dimensions, ImageBackground, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, Dimensions, ImageBackground, Modal, StyleSheet, Text, TextInput, TouchableOpacity, Vibration, View } from "react-native";
+import { Assets } from "../constants/Assets";
 import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
 
 const { width, height } = Dimensions.get("window");
 
-import { Assets } from "../constants/Assets";
-
 export default function LoginScreen() {
   const router = useRouter();
-  const { signInWithGoogle, loading, setUserRole, user, continueAsGuest, isGuest, signInAsDevAdmin } = useAuth();
+  const { signInWithGoogle, loading, setAdminRole, user, continueAsGuest, isGuest, signInAsDevAdmin } = useAuth();
   const { colors } = useTheme();
   const { t } = useLanguage();
   const [showAdmin, setShowAdmin] = useState(false);
@@ -34,11 +33,7 @@ export default function LoginScreen() {
     if (tapsRef.current >= 5) {
       setShowAdmin(prev => !prev);
       tapsRef.current = 0;
-      // Vibration feedback (if available)
-      try {
-        const { Vibration } = require('react-native');
-        Vibration.vibrate(100);
-      } catch (e) { }
+      Vibration.vibrate(100);
     }
   };
 
@@ -47,7 +42,7 @@ export default function LoginScreen() {
     if (user || isGuest) {
       router.replace("/");
     }
-  }, [user, isGuest]);
+  }, [user, isGuest, router]);
 
   const handleGoogleSignIn = async () => {
     if (showAdmin) {
@@ -121,7 +116,6 @@ export default function LoginScreen() {
                 }}
                 onPress={async () => {
                   try {
-                    const { setAdminRole } = useAuth(); // Actually call it from the hook
                     await setAdminRole();
                   } catch (e) {
                     console.error(e);

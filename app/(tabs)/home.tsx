@@ -70,7 +70,7 @@ interface AnimatedMarkerProps {
   onPress: (job: Job) => void;
 }
 
-const AnimatedMarker = React.memo(({ job, isSelected, isInQueue, queueIndex, markerDistanceText, pulseValue, colors, onPress }: AnimatedMarkerProps) => {
+const AnimatedMarker = React.memo(function AnimatedMarker({ job, isSelected, isInQueue, queueIndex, markerDistanceText, pulseValue, colors, onPress }: AnimatedMarkerProps) {
   const animatedRingStyle = useAnimatedStyle(() => ({
     transform: [{ scale: interpolate(pulseValue.value, [0, 1], [1, 2.5]) }],
     opacity: interpolate(pulseValue.value, [0, 0.5, 1], [0.6, 0.3, 0]),
@@ -1871,7 +1871,7 @@ export default function CollectorHomeScreen() {
         <View style={styles.idleOverlay} pointerEvents="box-none">
           <TouchableOpacity onPress={handleSearchNow} activeOpacity={0.8}>
             <LinearGradient
-              colors={useTheme().isDark ? ['#00ff88', '#008f44'] : ['#10b981', '#064e3b']}
+              colors={isDark ? ['#00ff88', '#008f44'] : ['#10b981', '#064e3b']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.searchButtonGradient}

@@ -22,7 +22,10 @@ interface ScanResultProps {
 
 export default function ScanResultView({ item, onAddToCart, onCancel }: ScanResultProps) {
     const { t } = useLanguage();
-    const { colors, isDark } = useTheme();
+    const { colors } = useTheme();
+    const statusColor = item.recyclable ? colors.success : colors.error;
+    const topLabels = item.labels.slice(0, 3);
+
     return (
         <View style={[styles.fullScreenContainer, { backgroundColor: colors.background }]}>
             <View style={[styles.resultImageContainer, { backgroundColor: colors.backgroundSecondary }]}>
@@ -39,6 +42,12 @@ export default function ScanResultView({ item, onAddToCart, onCancel }: ScanResu
             </View>
 
             <View style={[styles.resultDetailsCard, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
+                <View style={[styles.statusPill, { backgroundColor: statusColor + '18' }]}>
+                    <Ionicons name={item.recyclable ? "checkmark-circle" : "alert-circle"} size={18} color={statusColor} />
+                    <Text style={[styles.statusText, { color: statusColor }]}>
+                        {item.recyclable ? "Recyclable item detected" : "Not accepted for pickup"}
+                    </Text>
+                </View>
                 <Text style={[styles.resultItemName, { color: colors.text }]}>{item.name}</Text>
                 <View style={[styles.resultStatsRow, { backgroundColor: colors.backgroundSecondary }]}>
                     <View style={styles.resultStatBox}>
@@ -54,6 +63,15 @@ export default function ScanResultView({ item, onAddToCart, onCancel }: ScanResu
                         <Text style={[styles.resultStatValue, { color: colors.text }]}>{item.points}</Text>
                     </View>
                 </View>
+                {topLabels.length > 0 && (
+                    <View style={styles.labelRow}>
+                        {topLabels.map((label) => (
+                            <View key={label} style={[styles.labelChip, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
+                                <Text style={[styles.labelText, { color: colors.textSecondary }]}>{label}</Text>
+                            </View>
+                        ))}
+                    </View>
+                )}
                 {!item.recyclable && (
                     <View style={[styles.warningBox, { backgroundColor: colors.error + '10' }]}>
                         <Ionicons name="warning-outline" size={20} color={colors.error || "#ff4d4d"} />
@@ -71,7 +89,7 @@ export default function ScanResultView({ item, onAddToCart, onCancel }: ScanResu
                     onPress={item.recyclable ? onAddToCart : onCancel}
                 >
                     <Text style={[styles.primaryButtonText, { color: colors.textInverse }]}>
-                        {item.recyclable ? "Add to Cart" : "Back to Homepage"}
+                        {item.recyclable ? "Add item to cart" : "Back to home"}
                     </Text>
                 </TouchableOpacity>
             </View>
@@ -91,11 +109,16 @@ const styles = StyleSheet.create({
     bracketBR: { bottom: 0, right: 0, borderLeftWidth: 0, borderTopWidth: 0, borderBottomRightRadius: 20 },
     backButtonAbsolute: { position: 'absolute', top: 20, left: 20, padding: 8, borderRadius: 12, shadowOpacity: 0.1, elevation: 2 },
     resultDetailsCard: { flex: 1, borderTopLeftRadius: 30, borderTopRightRadius: 30, marginTop: -30, padding: 30, shadowOpacity: 0.1, elevation: 10 },
-    resultItemName: { fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 20 },
-    resultStatsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 30, padding: 15, borderRadius: 15 },
+    statusPill: { alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 16, marginBottom: 14 },
+    statusText: { fontSize: 12, fontWeight: '900' },
+    resultItemName: { fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 18 },
+    resultStatsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14, padding: 15, borderRadius: 15 },
     resultStatBox: { alignItems: 'center', flex: 1 },
     resultStatLabel: { fontSize: 11, color: '#888', marginBottom: 4, textTransform: 'uppercase' },
     resultStatValue: { fontSize: 16, fontWeight: 'bold' },
+    labelRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginBottom: 20 },
+    labelChip: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 5 },
+    labelText: { fontSize: 11, fontWeight: '700' },
     primaryButton: { paddingVertical: 18, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
     primaryButtonText: { fontSize: 16, fontWeight: '700' },
     warningBox: { flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 12, marginBottom: 20, gap: 10 },

@@ -25,41 +25,81 @@ interface CartViewProps {
 
 export default function CartView({ cart, onUpdateQuantity, onAddMore, onReviewAddress, onBack, isLocked }: CartViewProps) {
     const { t } = useLanguage();
-    const { colors, isDark } = useTheme();
+    const { colors } = useTheme();
+    const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+    const totalPoints = cart.reduce((sum, item) => sum + item.points * item.quantity, 0);
+    const totalCO2 = cart.reduce((sum, item) => sum + (item.co2 || 0) * item.quantity, 0);
+
     return (
         <View style={[styles.fullScreenContainer, { backgroundColor: colors.background }]}>
             <View style={[styles.cartHeader, { borderBottomColor: colors.divider }]}>
-                {/* Back button removed */}
-                <Text style={[styles.cartTitle, { color: colors.text }]}>{t('cart.title')} ({cart.length})</Text>
+                <TouchableOpacity onPress={onBack} style={[styles.headerIconButton, { backgroundColor: colors.backgroundSecondary }]}>
+                    <Ionicons name="chevron-back" size={22} color={colors.text} />
+                </TouchableOpacity>
+                <Text style={[styles.cartTitle, { color: colors.text }]}>{t('cart.title')} ({totalItems})</Text>
                 <View style={{ width: 28 }} />
             </View>
 
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }}>
-                {cart.map((item, index) => (
-                    <View key={index} style={styles.cartItemRow}>
-                        <Image source={{ uri: item.imageUri }} style={[styles.cartItemImage, { backgroundColor: colors.border }]} />
-                        <View style={styles.cartItemInfo}>
-                            <Text style={[styles.cartItemName, { color: colors.text }]}>{item.name} ({item.material})</Text>
-                            <View style={[styles.qtyControl, { backgroundColor: colors.backgroundSecondary, opacity: isLocked ? 0.5 : 1 }]}>
-                                <TouchableOpacity
-                                    onPress={() => !isLocked && onUpdateQuantity(item.id, -1)}
-                                    style={styles.qtyBtn}
-                                    disabled={isLocked}
-                                >
-                                    {item.quantity === 1 ? <Ionicons name="trash-outline" size={16} color="red" /> : <Text style={{ color: colors.text }}>-</Text>}
-                                </TouchableOpacity>
-                                <Text style={[styles.qtyText, { color: colors.text }]}>{item.quantity}</Text>
-                                <TouchableOpacity
-                                    onPress={() => !isLocked && onUpdateQuantity(item.id, 1)}
-                                    style={styles.qtyBtn}
-                                    disabled={isLocked}
-                                >
-                                    <Text style={{ color: colors.text }}>+</Text>
-                                </TouchableOpacity>
+                {cart.length === 0 ? (
+                    <View style={[styles.emptyCart, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                        <View style={[styles.emptyIcon, { backgroundColor: colors.badgeBackground }]}>
+                            <Ionicons name="cart-outline" size={32} color={colors.primary} />
+                        </View>
+                        <Text style={[styles.emptyTitle, { color: colors.text }]}>Your cart is empty</Text>
+                        <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                            Scan an item or add it manually before requesting a pickup.
+                        </Text>
+                        <TouchableOpacity style={[styles.emptyAction, { backgroundColor: colors.primary }]} onPress={onAddMore}>
+                            <Ionicons name="camera-outline" size={18} color={colors.textInverse} />
+                            <Text style={[styles.emptyActionText, { color: colors.textInverse }]}>Start scanning</Text>
+                        </TouchableOpacity>
+                    </View>
+                ) : (
+                    <>
+                        <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                            <View style={styles.summaryItem}>
+                                <Text style={[styles.summaryValue, { color: colors.text }]}>{totalItems}</Text>
+                                <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Items</Text>
+                            </View>
+                            <View style={[styles.summaryItem, styles.summaryDivider, { borderColor: colors.divider }]}>
+                                <Text style={[styles.summaryValue, { color: colors.primary }]}>{totalPoints}</Text>
+                                <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Est. points</Text>
+                            </View>
+                            <View style={styles.summaryItem}>
+                                <Text style={[styles.summaryValue, { color: colors.text }]}>{totalCO2.toFixed(1)}kg</Text>
+                                <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>CO2 saved</Text>
                             </View>
                         </View>
-                    </View>
-                ))}
+
+                        {cart.map((item) => (
+                            <View key={item.id} style={[styles.cartItemRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                                <Image source={{ uri: item.imageUri }} style={[styles.cartItemImage, { backgroundColor: colors.border }]} />
+                                <View style={styles.cartItemInfo}>
+                                    <Text style={[styles.cartItemName, { color: colors.text }]}>{item.name}</Text>
+                                    <Text style={[styles.cartItemMeta, { color: colors.textSecondary }]}>{item.material} - {item.points} pts each</Text>
+                                    <View style={[styles.qtyControl, { backgroundColor: colors.backgroundSecondary, opacity: isLocked ? 0.5 : 1 }]}>
+                                        <TouchableOpacity
+                                            onPress={() => !isLocked && onUpdateQuantity(item.id, -1)}
+                                            style={styles.qtyBtn}
+                                            disabled={isLocked}
+                                        >
+                                            {item.quantity === 1 ? <Ionicons name="trash-outline" size={16} color={colors.error} /> : <Text style={{ color: colors.text }}>-</Text>}
+                                        </TouchableOpacity>
+                                        <Text style={[styles.qtyText, { color: colors.text }]}>{item.quantity}</Text>
+                                        <TouchableOpacity
+                                            onPress={() => !isLocked && onUpdateQuantity(item.id, 1)}
+                                            style={styles.qtyBtn}
+                                            disabled={isLocked}
+                                        >
+                                            <Text style={{ color: colors.text }}>+</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            </View>
+                        ))}
+                    </>
+                )}
 
                 <TouchableOpacity
                     style={[styles.addMoreBtn, { marginBottom: 100, opacity: isLocked ? 0.5 : 1 }]}
@@ -92,11 +132,24 @@ export default function CartView({ cart, onUpdateQuantity, onAddMore, onReviewAd
 const styles = StyleSheet.create({
     fullScreenContainer: { flex: 1, paddingBottom: 90 },
     cartHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1 },
+    headerIconButton: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
     cartTitle: { fontSize: 18, fontWeight: 'bold' },
-    cartItemRow: { flexDirection: 'row', marginBottom: 20, alignItems: 'center' },
+    summaryCard: { flexDirection: 'row', borderRadius: 20, borderWidth: 1, padding: 16, marginBottom: 18 },
+    summaryItem: { flex: 1, alignItems: 'center' },
+    summaryDivider: { borderLeftWidth: 1, borderRightWidth: 1 },
+    summaryValue: { fontSize: 20, fontWeight: '900' },
+    summaryLabel: { fontSize: 11, fontWeight: '700', marginTop: 3 },
+    emptyCart: { borderWidth: 1, borderRadius: 24, padding: 28, alignItems: 'center', marginTop: 40 },
+    emptyIcon: { width: 68, height: 68, borderRadius: 34, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
+    emptyTitle: { fontSize: 20, fontWeight: '900', marginBottom: 8 },
+    emptyText: { fontSize: 14, textAlign: 'center', lineHeight: 20, marginBottom: 18 },
+    emptyAction: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, paddingHorizontal: 18, borderRadius: 18 },
+    emptyActionText: { fontWeight: '800' },
+    cartItemRow: { flexDirection: 'row', marginBottom: 14, alignItems: 'center', padding: 12, borderRadius: 18, borderWidth: 1 },
     cartItemImage: { width: 60, height: 80, borderRadius: 10, resizeMode: 'contain' },
     cartItemInfo: { flex: 1, marginLeft: 15 },
-    cartItemName: { fontSize: 14, fontWeight: '600', marginBottom: 10 },
+    cartItemName: { fontSize: 15, fontWeight: '800' },
+    cartItemMeta: { fontSize: 12, fontWeight: '600', marginTop: 3, marginBottom: 10 },
     qtyControl: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', borderRadius: 20, padding: 2 },
     qtyBtn: { width: 30, height: 30, justifyContent: 'center', alignItems: 'center' },
     qtyText: { marginHorizontal: 10, fontWeight: 'bold' },

@@ -109,7 +109,7 @@ export default function AnalyticsView() {
 
                     <View style={{ backgroundColor: colors.background, padding: 15, borderRadius: 10, marginTop: 15 }}>
                         <Text style={{ color: colors.textSecondary, fontStyle: 'italic', fontSize: 12, textAlign: 'center' }}>
-                            "Your contributions effectively offset the yearly carbon footprint of {Math.ceil(stats.trees)} mature trees."
+                            Your contributions effectively offset the yearly carbon footprint of {Math.ceil(stats.trees)} mature trees.
                         </Text>
                     </View>
                 </View>

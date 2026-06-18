@@ -79,6 +79,7 @@ const ChatHeader = React.memo(({ colors, onClearChat }: { colors: any, onClearCh
         </TouchableOpacity>
     </View>
 ));
+ChatHeader.displayName = 'ChatHeader';
 
 // Memoized Message Bubble to optimize rendering of the growing text list
 const MessageBubble = React.memo(({ item, colors }: { item: Message, colors: any }) => (
@@ -117,6 +118,7 @@ const MessageBubble = React.memo(({ item, colors }: { item: Message, colors: any
         )}
     </View>
 ));
+MessageBubble.displayName = 'MessageBubble';
 
 export default function EcoBot({ 
     visible, onClose, onScan, onOpenCart, onViewProfile, onTrack, 

@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
-import { Dimensions, Image, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import { Assets } from "../../constants/Assets";
 import { useAuth } from "../../contexts/AuthContext";
@@ -10,8 +10,6 @@ import { getDailyTip } from "../../lib/gemini";
 import LanguageSwitcher from "../LanguageSwitcher";
 import MaterialGuideModal, { MaterialType } from "./MaterialGuideModal";
 import TransactionDetailModal from "./TransactionDetailModal";
-
-const { width } = Dimensions.get("window");
 
 // --- THEME ---
 const CONTRIBUTOR_THEME = {
@@ -51,8 +49,7 @@ interface HomeViewProps {
 
 export default function HomeView({ stats, userLocation, avatarUrl, recentTransactions = [], onStartScan, onManualAdd, onProfilePress }: HomeViewProps) {
     const { t, language } = useLanguage();
-    // ... (rest of local state) as before
-    const { isDark, colors } = useTheme();
+    const { isDark } = useTheme();
     const theme = isDark ? CONTRIBUTOR_THEME.dark : CONTRIBUTOR_THEME.light;
     const { profile } = useAuth();
     const [selectedMaterial, setSelectedMaterial] = useState<MaterialType | null>(null);
@@ -80,6 +77,7 @@ export default function HomeView({ stats, userLocation, avatarUrl, recentTransac
     };
 
     const isNewUser = stats.points === 0 && stats.recycled === "0";
+    const locationReady = !!userLocation;
 
     return (
         <ScrollView
@@ -156,30 +154,44 @@ export default function HomeView({ stats, userLocation, avatarUrl, recentTransac
             </LinearGradient>
 
             {/* --- GET STARTED CTA (NEW USER) --- */}
-            {isNewUser && (
-                <View style={[styles.sectionContainer, { marginTop: 24 }]}>
-                    <TouchableOpacity
-                        style={[styles.ctaCard, { backgroundColor: theme.primary }]}
-                        onPress={onStartScan}
-                    >
-                        <View style={styles.ctaContent}>
-                            <View style={styles.ctaIconBox}>
-                                <MaterialCommunityIcons name="camera-plus" size={28} color={theme.primary} />
-                            </View>
-                            <View style={{ flex: 1 }}>
-                                <Text style={styles.ctaTitle}>{t('home.startFirstScan')}</Text>
-                                <Text style={styles.ctaDescription}>{t('home.startFirstScanDesc')}</Text>
-                            </View>
-                            <MaterialCommunityIcons name="chevron-right" size={24} color="#fff" />
+            <View style={[styles.sectionContainer, { marginTop: 24 }]}>
+                <TouchableOpacity
+                    style={[styles.ctaCard, { backgroundColor: theme.primary }]}
+                    onPress={onStartScan}
+                >
+                    <View style={styles.ctaContent}>
+                        <View style={styles.ctaIconBox}>
+                            <MaterialCommunityIcons name={isNewUser ? "camera-plus" : "recycle"} size={28} color={theme.primary} />
                         </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.ctaTitle}>{isNewUser ? t('home.startFirstScan') : "Ready for another pickup?"}</Text>
+                            <Text style={styles.ctaDescription}>
+                                {isNewUser ? t('home.startFirstScanDesc') : "Scan or add recyclable items, then request a collector."}
+                            </Text>
+                        </View>
+                        <MaterialCommunityIcons name="chevron-right" size={24} color="#fff" />
+                    </View>
+                </TouchableOpacity>
+
+                <View style={styles.quickActionRow}>
+                    <TouchableOpacity style={[styles.quickAction, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={onManualAdd}>
+                        <MaterialCommunityIcons name="keyboard-outline" size={22} color={theme.primary} />
+                        <Text style={[styles.quickActionText, { color: theme.text }]}>Manual add</Text>
                     </TouchableOpacity>
+                    <View style={[styles.quickAction, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                        <MaterialCommunityIcons name={locationReady ? "map-marker-check" : "map-marker-alert"} size={22} color={locationReady ? theme.primary : "#F59E0B"} />
+                        <Text style={[styles.quickActionText, { color: theme.text }]}>{locationReady ? "Location ready" : "Location pending"}</Text>
+                    </View>
                 </View>
-            )}
+            </View>
 
             {/* --- RECYCLE NOW GRID --- */}
             <View style={[styles.sectionContainer, { marginTop: 32 }]}>
                 <View style={styles.sectionHeaderRow}>
-                    <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('home.recycleNow')}</Text>
+                    <View style={{ flex: 1 }}>
+                        <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('home.recycleNow')}</Text>
+                        <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>Check accepted materials before sending a pickup request.</Text>
+                    </View>
                     <TouchableOpacity onPress={onManualAdd}>
                         <Text style={[styles.viewAllText, { color: theme.primary, textDecorationLine: 'underline' }]}>
                             {t('home.cantScan')}
@@ -196,6 +208,9 @@ export default function HomeView({ stats, userLocation, avatarUrl, recentTransac
                         >
                             <View style={[styles.gridImageBox, { backgroundColor: theme.card, borderColor: theme.border }]}>
                                 <Image source={{ uri: cat.image }} style={styles.gridImage} resizeMode="cover" />
+                                <View style={styles.gridOverlay}>
+                                    <MaterialCommunityIcons name="information-outline" size={16} color="#fff" />
+                                </View>
                             </View>
                             <Text style={[styles.gridLabel, { color: theme.textSecondary }]}>{cat.name}</Text>
                         </TouchableOpacity>
@@ -225,8 +240,14 @@ export default function HomeView({ stats, userLocation, avatarUrl, recentTransac
                         ))}
                     </View>
                 ) : (
-                    <View style={[styles.emptyCard, { backgroundColor: theme.card }]}>
-                        <Text style={{ color: theme.textSecondary }}>{t('home.noProcessingActivity')}</Text>
+                    <View style={[styles.emptyCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                        <View style={[styles.emptyIconCircle, { backgroundColor: isDark ? 'rgba(74,222,128,0.18)' : '#ecfdf5' }]}>
+                            <MaterialCommunityIcons name="history" size={28} color={theme.primary} />
+                        </View>
+                        <Text style={[styles.emptyTitle, { color: theme.text }]}>No pickups yet</Text>
+                        <Text style={[styles.emptyDescription, { color: theme.textSecondary }]}>
+                            Your completed collections will appear here after a collector verifies the weight.
+                        </Text>
                     </View>
                 )}
             </View>
@@ -292,6 +313,7 @@ const styles = StyleSheet.create({
     heroImpactContainer: { paddingHorizontal: 20, paddingVertical: 10 },
     sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 20 },
     sectionTitle: { fontSize: 22, fontWeight: '900', letterSpacing: -0.5 },
+    sectionSubtitle: { fontSize: 13, fontWeight: '600', marginTop: 4, lineHeight: 18 },
     viewAllText: { fontSize: 13, fontWeight: '800' },
 
     // Impact Card
@@ -311,6 +333,7 @@ const styles = StyleSheet.create({
     gridItem: { flex: 1, alignItems: 'center', gap: 10 },
     gridImageBox: { width: '100%', aspectRatio: 1, borderRadius: 24, justifyContent: 'center', alignItems: 'center', overflow: 'hidden', borderWidth: 1, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 10, elevation: 5 },
     gridImage: { width: '100%', height: '100%', opacity: 1 },
+    gridOverlay: { position: 'absolute', top: 8, right: 8, width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', alignItems: 'center' },
     gridLabel: { fontSize: 12, fontWeight: '700' },
 
     // Activity List
@@ -322,7 +345,10 @@ const styles = StyleSheet.create({
     activityTime: { fontSize: 12, fontWeight: '500', opacity: 0.6 },
     activityBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
     activityPoints: { fontSize: 13, fontWeight: '900' },
-    emptyCard: { padding: 30, borderRadius: 24, alignItems: 'center', marginTop: 10, borderStyle: 'dashed', borderWidth: 1, borderColor: '#cbd5e1' },
+    emptyCard: { padding: 24, borderRadius: 24, alignItems: 'center', marginTop: 10, borderStyle: 'dashed', borderWidth: 1 },
+    emptyIconCircle: { width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+    emptyTitle: { fontSize: 17, fontWeight: '900', marginBottom: 6 },
+    emptyDescription: { fontSize: 13, lineHeight: 19, textAlign: 'center' },
 
     // Eco Tip
     tipCard: { borderRadius: 30, padding: 24, overflow: 'hidden', position: 'relative', shadowOpacity: 0.4, shadowRadius: 15, elevation: 12 },
@@ -339,6 +365,9 @@ const styles = StyleSheet.create({
     ctaIconBox: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center', shadowColor: "#000", shadowOpacity: 0.1, elevation: 5 },
     ctaTitle: { color: '#fff', fontSize: 20, fontWeight: '900', marginBottom: 4 },
     ctaDescription: { color: 'rgba(255,255,255,0.85)', fontSize: 14, lineHeight: 20 },
+    quickActionRow: { flexDirection: 'row', gap: 12, marginTop: 12 },
+    quickAction: { flex: 1, minHeight: 52, borderRadius: 18, borderWidth: 1, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
+    quickActionText: { flex: 1, fontSize: 12, fontWeight: '800' },
     manualLink: { alignSelf: 'center', padding: 10 },
     manualLinkText: { fontSize: 14, fontWeight: '700', textDecorationLine: 'underline' }
 });
