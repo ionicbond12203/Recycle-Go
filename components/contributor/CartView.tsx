@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useTheme } from "../../contexts/ThemeContext";
 
@@ -26,13 +27,14 @@ interface CartViewProps {
 export default function CartView({ cart, onUpdateQuantity, onAddMore, onReviewAddress, onBack, isLocked }: CartViewProps) {
     const { t } = useLanguage();
     const { colors } = useTheme();
+    const insets = useSafeAreaInsets();
     const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
     const totalPoints = cart.reduce((sum, item) => sum + item.points * item.quantity, 0);
     const totalCO2 = cart.reduce((sum, item) => sum + (item.co2 || 0) * item.quantity, 0);
 
     return (
         <View style={[styles.fullScreenContainer, { backgroundColor: colors.background }]}>
-            <View style={[styles.cartHeader, { borderBottomColor: colors.divider }]}>
+            <View style={[styles.cartHeader, { paddingTop: insets.top + 14, borderBottomColor: colors.divider }]}>
                 <TouchableOpacity onPress={onBack} style={[styles.headerIconButton, { backgroundColor: colors.backgroundSecondary }]}>
                     <Ionicons name="chevron-back" size={22} color={colors.text} />
                 </TouchableOpacity>
@@ -40,7 +42,7 @@ export default function CartView({ cart, onUpdateQuantity, onAddMore, onReviewAd
                 <View style={{ width: 28 }} />
             </View>
 
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }}>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
                 {cart.length === 0 ? (
                     <View style={[styles.emptyCart, { backgroundColor: colors.card, borderColor: colors.border }]}>
                         <View style={[styles.emptyIcon, { backgroundColor: colors.badgeBackground }]}>
@@ -131,7 +133,7 @@ export default function CartView({ cart, onUpdateQuantity, onAddMore, onReviewAd
 
 const styles = StyleSheet.create({
     fullScreenContainer: { flex: 1, paddingBottom: 90 },
-    cartHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1 },
+    cartHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 18, borderBottomWidth: 1 },
     headerIconButton: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
     cartTitle: { fontSize: 18, fontWeight: 'bold' },
     summaryCard: { flexDirection: 'row', borderRadius: 20, borderWidth: 1, padding: 16, marginBottom: 18 },
