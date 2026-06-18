@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, AppStateStatus, BackHandler, Dimensions, FlatList, Image, Linking, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, AppStateStatus, BackHandler, Dimensions, FlatList, Image, Linking, Modal, PanResponder, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import MapViewDirections from 'react-native-maps-directions';
@@ -195,6 +195,41 @@ export default function CollectorHomeScreen() {
    * `green`: Eco-friendly route optimization (if implemented).
    */
   const [algorithmMode, setAlgorithmMode] = useState<'standard' | 'green'>('standard');
+  const [algoToggleWidth, setAlgoToggleWidth] = useState(0);
+  const [algoThumbX, setAlgoThumbX] = useState(0);
+  const algorithmModeRef = useRef<'standard' | 'green'>('standard');
+  const algoToggleWidthRef = useRef(0);
+  const algoDragStartRef = useRef(0);
+
+  const getAlgoThumbTravel = () => Math.max(0, (algoToggleWidthRef.current - 8) / 2);
+
+  const selectAlgorithmMode = (mode: 'standard' | 'green') => {
+    algorithmModeRef.current = mode;
+    setAlgorithmMode(mode);
+    setAlgoThumbX(mode === 'green' ? getAlgoThumbTravel() : 0);
+  };
+
+  const algorithmModeSwipeResponder = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponder: (_, gestureState) =>
+      Math.abs(gestureState.dx) > 4 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy),
+    onPanResponderGrant: () => {
+      algoDragStartRef.current = algorithmModeRef.current === 'green' ? getAlgoThumbTravel() : 0;
+    },
+    onPanResponderMove: (_, gestureState) => {
+      const travel = getAlgoThumbTravel();
+      const nextX = Math.min(travel, Math.max(0, algoDragStartRef.current + gestureState.dx));
+      setAlgoThumbX(nextX);
+    },
+    onPanResponderRelease: (_, gestureState) => {
+      const travel = getAlgoThumbTravel();
+      const finalX = Math.min(travel, Math.max(0, algoDragStartRef.current + gestureState.dx));
+      selectAlgorithmMode(finalX > travel / 2 ? 'green' : 'standard');
+    },
+    onPanResponderTerminate: () => {
+      setAlgoThumbX(algorithmModeRef.current === 'green' ? getAlgoThumbTravel() : 0);
+    },
+  })).current;
 
   // Helper to re-optimize whenever mode or queue changes
   const reoptimizeRoute = async (mode: 'standard' | 'green') => {
@@ -1451,16 +1486,37 @@ export default function CollectorHomeScreen() {
         </View>
       </View>
 
-      <View style={[styles.algoTogglePill, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F8FAFC' }]}>
+      <View
+        style={[styles.algoTogglePill, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F8FAFC' }]}
+        onLayout={(event) => {
+          const nextWidth = event.nativeEvent.layout.width;
+          if (nextWidth === algoToggleWidthRef.current) return;
+          algoToggleWidthRef.current = nextWidth;
+          setAlgoToggleWidth(nextWidth);
+          setAlgoThumbX(algorithmModeRef.current === 'green' ? Math.max(0, (nextWidth - 8) / 2) : 0);
+        }}
+        {...algorithmModeSwipeResponder.panHandlers}
+      >
+        <View
+          pointerEvents="none"
+          style={[
+            styles.algoSelectionThumb,
+            {
+              width: Math.max(0, (algoToggleWidth - 8) / 2),
+              backgroundColor: isDark ? '#333' : '#FFF',
+              transform: [{ translateX: algoThumbX }],
+            }
+          ]}
+        />
         <TouchableOpacity
-          style={[styles.algoOption, algorithmMode === 'standard' && { backgroundColor: isDark ? '#333' : '#FFF', elevation: 2 }]}
-          onPress={() => setAlgorithmMode('standard')}
+          style={styles.algoOption}
+          onPress={() => selectAlgorithmMode('standard')}
         >
           <Text style={[styles.algoText, { color: algorithmMode === 'standard' ? colors.primary : colors.textSecondary }]}>Standard</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.algoOption, algorithmMode === 'green' && { backgroundColor: isDark ? '#333' : '#FFF', elevation: 2 }]}
-          onPress={() => setAlgorithmMode('green')}
+          style={styles.algoOption}
+          onPress={() => selectAlgorithmMode('green')}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             <MaterialCommunityIcons name="leaf" size={16} color={algorithmMode === 'green' ? colors.primary : colors.textSecondary} />
@@ -2062,7 +2118,7 @@ export default function CollectorHomeScreen() {
         }}
         onOptimizeRoute={(mode) => {
           setIsEcoBotOpen(false);
-          setAlgorithmMode(mode);
+          selectAlgorithmMode(mode);
           reoptimizeRoute(mode);
         }}
         onMarkArrived={() => {
@@ -2109,8 +2165,9 @@ const styles = StyleSheet.create({
   queueBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   queueText: { fontSize: 11, fontWeight: '900' },
 
-  algoTogglePill: { flexDirection: 'row', borderRadius: 16, padding: 4, marginBottom: 20 },
-  algoOption: { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
+  algoTogglePill: { flexDirection: 'row', borderRadius: 16, padding: 4, marginBottom: 20, position: 'relative', overflow: 'hidden' },
+  algoSelectionThumb: { position: 'absolute', top: 4, bottom: 4, left: 4, borderRadius: 12, elevation: 2, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8 },
+  algoOption: { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center', zIndex: 1 },
   algoText: { fontSize: 14, fontWeight: '700' },
 
   requestButtons: { flexDirection: 'row', gap: 12 },
