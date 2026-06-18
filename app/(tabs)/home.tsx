@@ -35,10 +35,18 @@ import { ChatMessage, CollectorAppState, Job, MapType, Transaction } from '../..
 /** Google Maps API Key from environment variables. Essential for MapView and Directions API. */
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY!;
 const { width, height } = Dimensions.get('window');
+const CAMERA_UPDATE_INTERVAL_MS = 900;
+const DRIVER_MARKER_UPDATE_INTERVAL_MS = 800;
+const SUPABASE_SYNC_INTERVAL_MS = 4000;
+const ROUTE_REFRESH_INTERVAL_MS = 30000;
+const ROUTE_REFRESH_DISTANCE_M = 80;
+const TURN_DISTANCE_UPDATE_INTERVAL_MS = 900;
+const TURN_DISTANCE_DELTA_M = 15;
 
 // --- Navigation Config ---
 /** Configuration for the map camera when in driving mode (pitch, zoom, altitude). */
 const DRIVING_VIEW_CONFIG = GameMechanics.MAP.DRIVING_VIEW;
+type Coordinate = { latitude: number; longitude: number };
 
 // --- Styles ---
 
@@ -128,6 +136,7 @@ export default function CollectorHomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const mapRef = useRef<MapView>(null);
+  const collectorMarkerRef = useRef<any>(null);
   const { colors, isDark } = useTheme();
   const { t } = useLanguage();
   const { user } = useAuth();
@@ -152,6 +161,8 @@ export default function CollectorHomeScreen() {
     latitudeDelta: 0.05,
     longitudeDelta: 0.05,
   });
+  const [driverLocation, setDriverLocation] = useState<Coordinate>({ latitude: 3.1390, longitude: 101.6869 });
+  const [routeOrigin, setRouteOrigin] = useState<Coordinate>({ latitude: 3.1390, longitude: 101.6869 });
   const [permission, setPermission] = useState(false);
 
   // --- Job & Queue State ---
@@ -209,6 +220,15 @@ export default function CollectorHomeScreen() {
   const routeStepsRef = useRef<any[]>([]);
   /** Index of the current step in `routeStepsRef`. */
   const currentStepIndexRef = useRef(0);
+  const latestDriverLocationRef = useRef<Coordinate>({ latitude: 3.1390, longitude: 101.6869 });
+  const routeOriginRef = useRef<Coordinate>({ latitude: 3.1390, longitude: 101.6869 });
+  const lastCameraUpdateRef = useRef(0);
+  const lastDriverMarkerUpdateRef = useRef(0);
+  const lastSupabaseSyncRef = useRef(0);
+  const lastRouteRefreshRef = useRef(0);
+  const smoothedHeadingRef = useRef(0);
+  const lastTurnDistanceRef = useRef<number | null>(null);
+  const lastTurnDistanceUpdateRef = useRef(0);
   /** Subscription object for high-frequency location tracking. */
   const [locationSubscription, setLocationSubscription] = useState<Location.LocationSubscription | null>(null);
 
@@ -237,6 +257,7 @@ export default function CollectorHomeScreen() {
   const [lastTransaction, setLastTransaction] = useState<Transaction | null>(null);
   const [balance, setBalance] = useState(0);
   const [totalWeight, setTotalWeight] = useState(0);
+  const hasPendingWeightConfirmation = waitingForConfirmation || !!currentTransactionId;
 
   // --- AI Agent State ---
   const [isEcoBotOpen, setIsEcoBotOpen] = useState(false);
@@ -287,7 +308,10 @@ export default function CollectorHomeScreen() {
           try {
             const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
             const { latitude, longitude } = location.coords;
-            setRegion((prev: typeof region) => ({ ...prev, latitude, longitude }));
+            const coordinate = { latitude, longitude };
+            latestDriverLocationRef.current = coordinate;
+            setDriverLocation(coordinate);
+            setRegion((prev: typeof region) => ({ ...prev, ...coordinate }));
             await updateSupabaseLocation(latitude, longitude);
             console.log('Location synced after returning from Google Maps:', latitude, longitude);
 
@@ -422,6 +446,10 @@ export default function CollectorHomeScreen() {
           longitudeDelta: 0.05,
         };
         setRegion(initialRegion);
+        setDriverLocation({ latitude: initialRegion.latitude, longitude: initialRegion.longitude });
+        setRouteOrigin({ latitude: initialRegion.latitude, longitude: initialRegion.longitude });
+        latestDriverLocationRef.current = { latitude: initialRegion.latitude, longitude: initialRegion.longitude };
+        routeOriginRef.current = { latitude: initialRegion.latitude, longitude: initialRegion.longitude };
 
         if (mapRef.current) {
           mapRef.current.animateToRegion(initialRegion, 1000);
@@ -658,6 +686,53 @@ export default function CollectorHomeScreen() {
     return "arrow-up";
   };
 
+  const smoothHeading = (nextHeading: number | null | undefined) => {
+    const normalized = typeof nextHeading === 'number' && nextHeading >= 0 ? nextHeading : smoothedHeadingRef.current;
+    let delta = normalized - smoothedHeadingRef.current;
+    if (delta > 180) delta -= 360;
+    if (delta < -180) delta += 360;
+    smoothedHeadingRef.current = (smoothedHeadingRef.current + delta * 0.25 + 360) % 360;
+    return smoothedHeadingRef.current;
+  };
+
+  const setStableRouteOrigin = (coordinate: Coordinate) => {
+    routeOriginRef.current = coordinate;
+    lastRouteRefreshRef.current = Date.now();
+    setRouteOrigin(coordinate);
+  };
+
+  const maybeUpdateDriverMarker = (coordinate: Coordinate, now: number) => {
+    if (now - lastDriverMarkerUpdateRef.current < DRIVER_MARKER_UPDATE_INTERVAL_MS) return;
+    lastDriverMarkerUpdateRef.current = now;
+    if (collectorMarkerRef.current?.animateMarkerToCoordinate) {
+      collectorMarkerRef.current.animateMarkerToCoordinate(coordinate, DRIVER_MARKER_UPDATE_INTERVAL_MS);
+    }
+    setDriverLocation(coordinate);
+    setRegion((prev: typeof region) => ({ ...prev, ...coordinate }));
+  };
+
+  const maybeRefreshRouteOrigin = (coordinate: Coordinate, now: number) => {
+    const distanceFromRouteOrigin = getHaversineDistance(
+      coordinate.latitude,
+      coordinate.longitude,
+      routeOriginRef.current.latitude,
+      routeOriginRef.current.longitude
+    );
+
+    if (
+      distanceFromRouteOrigin >= ROUTE_REFRESH_DISTANCE_M ||
+      now - lastRouteRefreshRef.current >= ROUTE_REFRESH_INTERVAL_MS
+    ) {
+      setStableRouteOrigin(coordinate);
+    }
+  };
+
+  const maybeSyncCollectorLocation = (coordinate: Coordinate, now: number) => {
+    if (now - lastSupabaseSyncRef.current < SUPABASE_SYNC_INTERVAL_MS) return;
+    lastSupabaseSyncRef.current = now;
+    updateSupabaseLocation(coordinate.latitude, coordinate.longitude);
+  };
+
   // getDistance is now imported from ../../lib/algorithms
 
   /**
@@ -690,17 +765,25 @@ export default function CollectorHomeScreen() {
       { accuracy: Location.Accuracy.High, distanceInterval: 5 },
       (newLocation) => {
         const { latitude, longitude, heading } = newLocation.coords;
-        setRegion((prev: typeof region) => ({ ...prev, latitude, longitude }));
-        if (mapRef.current) {
+        const coordinate = { latitude, longitude };
+        const now = Date.now();
+
+        latestDriverLocationRef.current = coordinate;
+        maybeUpdateDriverMarker(coordinate, now);
+        maybeRefreshRouteOrigin(coordinate, now);
+
+        if (mapRef.current && now - lastCameraUpdateRef.current >= CAMERA_UPDATE_INTERVAL_MS) {
+          lastCameraUpdateRef.current = now;
           mapRef.current.animateCamera({
-            center: { latitude, longitude },
-            heading: heading || 0,
+            center: coordinate,
+            heading: smoothHeading(heading),
             pitch: DRIVING_VIEW_CONFIG.pitch,
             zoom: DRIVING_VIEW_CONFIG.zoom,
             altitude: DRIVING_VIEW_CONFIG.altitude
-          }, { duration: 500 });
+          }, { duration: CAMERA_UPDATE_INTERVAL_MS });
         }
-        updateSupabaseLocation(latitude, longitude);
+
+        maybeSyncCollectorLocation(coordinate, now);
         checkProgress(latitude, longitude);
         checkArrivedThreshold(latitude, longitude);
       }
@@ -726,8 +809,11 @@ export default function CollectorHomeScreen() {
       { accuracy: Location.Accuracy.High, distanceInterval: 10 },
       (newLocation) => {
         const { latitude, longitude } = newLocation.coords;
-        setRegion((prev: typeof region) => ({ ...prev, latitude, longitude }));
-        updateSupabaseLocation(latitude, longitude);
+        const coordinate = { latitude, longitude };
+        const now = Date.now();
+        latestDriverLocationRef.current = coordinate;
+        maybeUpdateDriverMarker(coordinate, now);
+        maybeSyncCollectorLocation(coordinate, now);
         checkArrivedThreshold(latitude, longitude);
       }
     );
@@ -772,6 +858,8 @@ export default function CollectorHomeScreen() {
       const nextIndex = index + 1;
       if (nextIndex < steps.length) {
         currentStepIndexRef.current = nextIndex;
+        lastTurnDistanceRef.current = null;
+        lastTurnDistanceUpdateRef.current = 0;
         const nextStep = steps[nextIndex];
         setNextTurn({
           instruction: stripHtml(nextStep.html_instructions),
@@ -785,8 +873,16 @@ export default function CollectorHomeScreen() {
         handleArrived();
       }
     } else {
-      // Just update distance text
-      setNextTurn((prev: typeof nextTurn) => ({ ...prev, distance: `${Math.round(distToTurn)} m` }));
+      const now = Date.now();
+      const lastDistance = lastTurnDistanceRef.current;
+      const hasMeaningfulDistanceChange = lastDistance === null || Math.abs(lastDistance - distToTurn) >= TURN_DISTANCE_DELTA_M;
+      const canUpdateDistance = now - lastTurnDistanceUpdateRef.current >= TURN_DISTANCE_UPDATE_INTERVAL_MS;
+
+      if (hasMeaningfulDistanceChange && canUpdateDistance) {
+        lastTurnDistanceRef.current = distToTurn;
+        lastTurnDistanceUpdateRef.current = now;
+        setNextTurn((prev: typeof nextTurn) => ({ ...prev, distance: `${Math.round(distToTurn)} m` }));
+      }
     }
   };
 
@@ -836,6 +932,10 @@ export default function CollectorHomeScreen() {
         latitudeDelta: 0.05,
         longitudeDelta: 0.05
       };
+      const freshCoordinate = { latitude: freshRegion.latitude, longitude: freshRegion.longitude };
+      latestDriverLocationRef.current = freshCoordinate;
+      setDriverLocation(freshCoordinate);
+      setStableRouteOrigin(freshCoordinate);
       setRegion(freshRegion);
       if (mapRef.current) mapRef.current.animateToRegion(freshRegion, 1000);
 
@@ -1113,6 +1213,9 @@ export default function CollectorHomeScreen() {
       //    triggering handleArrived immediately (collector is still near old destination)
       routeStepsRef.current = [];
       currentStepIndexRef.current = 0;
+      lastTurnDistanceRef.current = null;
+      lastTurnDistanceUpdateRef.current = 0;
+      setStableRouteOrigin(latestDriverLocationRef.current);
       setNextTurn({
         instruction: "Ready to start",
         subInstruction: "Head towards pickup",
@@ -1126,7 +1229,7 @@ export default function CollectorHomeScreen() {
 
       if (mapRef.current) {
         mapRef.current.fitToCoordinates(
-          [{ latitude: region.latitude, longitude: region.longitude }, { latitude: job.latitude, longitude: job.longitude }],
+          [latestDriverLocationRef.current, { latitude: job.latitude, longitude: job.longitude }],
           { edgePadding: { top: 100, right: 50, bottom: 250, left: 50 }, animated: true }
         );
       }
@@ -1156,7 +1259,7 @@ export default function CollectorHomeScreen() {
     setActiveJob(job);
     if (mapRef.current) {
       mapRef.current.fitToCoordinates(
-        [{ latitude: region.latitude, longitude: region.longitude }, { latitude: job.latitude, longitude: job.longitude }],
+        [latestDriverLocationRef.current, { latitude: job.latitude, longitude: job.longitude }],
         { edgePadding: { top: 100, right: 50, bottom: 300, left: 50 }, animated: true }
       );
     }
@@ -1168,16 +1271,18 @@ export default function CollectorHomeScreen() {
     Linking.openURL(url).catch(err => Alert.alert("Error", "Could not open map app."));
   };
 
-  const fetchRealRouteSteps = async () => {
+  const fetchRealRouteSteps = async (originCoordinate: Coordinate = latestDriverLocationRef.current) => {
     if (!activeJob) return;
     try {
-      const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${region.latitude},${region.longitude}&destination=${activeJob.latitude},${activeJob.longitude}&key=${GOOGLE_MAPS_API_KEY}`;
+      const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${originCoordinate.latitude},${originCoordinate.longitude}&destination=${activeJob.latitude},${activeJob.longitude}&key=${GOOGLE_MAPS_API_KEY}`;
       const response = await fetch(url);
       const json = await response.json();
       if (json.routes.length > 0 && json.routes[0].legs.length > 0) {
         const steps = json.routes[0].legs[0].steps;
         routeStepsRef.current = steps;
         currentStepIndexRef.current = 0;
+        lastTurnDistanceRef.current = null;
+        lastTurnDistanceUpdateRef.current = 0;
         if (steps.length > 0) {
           const firstStep = steps[0];
           setNextTurn({ instruction: stripHtml(firstStep.html_instructions), subInstruction: "Continue straight", distance: firstStep.distance.text, icon: getIconForManeuver(firstStep.maneuver) });
@@ -1188,19 +1293,26 @@ export default function CollectorHomeScreen() {
 
   const handleStartRide = () => {
     Alert.alert(t('collector.startNav'), t('collector.chooseNav'), [
-      { text: "Open Google Maps", onPress: () => { setNavigationMode('external'); setAppState('driving'); openMapsNavigation(); if (mapRef.current) mapRef.current.animateCamera({ center: { latitude: region.latitude, longitude: region.longitude }, pitch: 0, zoom: 16 }); } },
-      { text: "Use In-App Map", onPress: () => { setNavigationMode('internal'); setAppState('driving'); fetchRealRouteSteps(); if (mapRef.current) mapRef.current.animateCamera({ center: { latitude: region.latitude, longitude: region.longitude }, heading: 0, pitch: DRIVING_VIEW_CONFIG.pitch, zoom: DRIVING_VIEW_CONFIG.zoom, altitude: DRIVING_VIEW_CONFIG.altitude }, { duration: 1000 }); }, style: "default" },
+      { text: "Open Google Maps", onPress: () => { setNavigationMode('external'); setAppState('driving'); openMapsNavigation(); if (mapRef.current) mapRef.current.animateCamera({ center: latestDriverLocationRef.current, pitch: 0, zoom: 16 }); } },
+      { text: "Use In-App Map", onPress: () => { const currentLocation = latestDriverLocationRef.current; setStableRouteOrigin(currentLocation); setNavigationMode('internal'); setAppState('driving'); fetchRealRouteSteps(currentLocation); if (mapRef.current) mapRef.current.animateCamera({ center: currentLocation, heading: smoothedHeadingRef.current, pitch: DRIVING_VIEW_CONFIG.pitch, zoom: DRIVING_VIEW_CONFIG.zoom, altitude: DRIVING_VIEW_CONFIG.altitude }, { duration: 1000 }); }, style: "default" },
       { text: t('common.cancel'), style: "cancel" }
     ]);
   };
 
   function handleArrived() {
+    if (hasPendingWeightConfirmation) return;
     setAppState('arrived');
     stopLocationTracking();
     if (mapRef.current) mapRef.current.animateCamera({ pitch: 0, zoom: 18, center: { latitude: activeJob!.latitude, longitude: activeJob!.longitude } });
   }
 
   const handleCollected = () => {
+    if (!activeJob) return;
+    if (hasPendingWeightConfirmation) {
+      setIsWeightModalOpen(true);
+      return;
+    }
+    setActualWeight("");
     setIsWeightModalOpen(true);
   };
 
@@ -1216,7 +1328,13 @@ export default function CollectorHomeScreen() {
    * - Sets `waitingForConfirmation` to true, blocking UI.
    */
   const submitWeight = async () => {
-    if (!actualWeight || isNaN(parseFloat(actualWeight)) || !activeJob || !collectorId) {
+    if (hasPendingWeightConfirmation) {
+      Alert.alert("Request already submitted", "Waiting for the contributor to confirm the collection weight.");
+      return;
+    }
+
+    const parsedWeight = parseFloat(actualWeight.trim());
+    if (!actualWeight.trim() || isNaN(parsedWeight) || parsedWeight <= 0 || !activeJob || !collectorId) {
       Alert.alert("Invalid Input", "Please enter a valid weight in kg.");
       return;
     }
@@ -1226,7 +1344,7 @@ export default function CollectorHomeScreen() {
       const { data, error } = await supabase.from('transactions').insert({
         collector_id: collectorId,
         contributor_id: activeJob.id,
-        weight_kg: parseFloat(actualWeight),
+        weight_kg: parsedWeight,
         status: 'pending'
       }).select().single();
 
@@ -1497,7 +1615,7 @@ export default function CollectorHomeScreen() {
       </View>
       <View style={[styles.recenterButtonPos, { bottom: 160 + insets.bottom }]}>
         <TouchableOpacity style={styles.recenterButton} onPress={() => {
-          if (mapRef.current) mapRef.current.animateCamera({ center: { latitude: region.latitude, longitude: region.longitude }, heading: 0, pitch: DRIVING_VIEW_CONFIG.pitch, zoom: DRIVING_VIEW_CONFIG.zoom, altitude: DRIVING_VIEW_CONFIG.altitude }, { duration: 500 });
+          if (mapRef.current) mapRef.current.animateCamera({ center: latestDriverLocationRef.current, heading: smoothedHeadingRef.current, pitch: DRIVING_VIEW_CONFIG.pitch, zoom: DRIVING_VIEW_CONFIG.zoom, altitude: DRIVING_VIEW_CONFIG.altitude }, { duration: 500 });
         }}>
           <MaterialCommunityIcons name="navigation-variant" size={20} color="#1A73E8" />
           <Text style={styles.recenterText}>Re-center</Text>
@@ -1735,7 +1853,7 @@ export default function CollectorHomeScreen() {
         showsMyLocationButton={false}
         mapPadding={{ top: appState === 'driving' && navigationMode === 'internal' ? height * 0.25 : 0, bottom: 0, left: 0, right: 0 }}
       >
-        <Marker coordinate={region} title="You">
+        <Marker ref={collectorMarkerRef} coordinate={driverLocation} title="You">
           <View style={styles.truckIconContainer}><MaterialCommunityIcons name="truck" size={24} color="#fff" /></View>
         </Marker>
         {appState === 'request_received' && availableJobs.map((job: Job) => (
@@ -1762,7 +1880,7 @@ export default function CollectorHomeScreen() {
         {(appState === 'request_received' || appState === 'navigating' || appState === 'driving') && activeJob && (
           <MapViewDirections
             key={activeJob.id || 'route'}
-            origin={{ latitude: region.latitude, longitude: region.longitude }}
+            origin={routeOrigin}
             destination={
               activeQueue.length > 1
                 ? { latitude: activeQueue[activeQueue.length - 1].latitude, longitude: activeQueue[activeQueue.length - 1].longitude }
@@ -1791,13 +1909,19 @@ export default function CollectorHomeScreen() {
       />
       <WeightVerificationModal
         visible={isWeightModalOpen}
-        onClose={() => setIsWeightModalOpen(false)}
+        onClose={() => {
+          if (!hasPendingWeightConfirmation) {
+            setIsWeightModalOpen(false);
+          }
+        }}
         actualWeight={actualWeight}
         onWeightChange={setActualWeight}
         onSubmit={submitWeight}
         onCancel={() => {
           setWaitingForConfirmation(false);
           setCurrentTransactionId(null);
+          setIsWeightModalOpen(false);
+          setActualWeight("");
         }}
         waitingForConfirmation={waitingForConfirmation}
       />
@@ -1887,7 +2011,7 @@ export default function CollectorHomeScreen() {
       {appState === 'navigating' && renderNavigationPanel()}
       {appState === 'driving' && navigationMode === 'external' && renderTripInProgressPanel()}
       {appState === 'driving' && navigationMode === 'internal' && renderInternalDrivingOverlay()}
-      {appState === 'arrived' && renderArrivedPanel()}
+      {appState === 'arrived' && activeJob && !hasPendingWeightConfirmation && renderArrivedPanel()}
       {appState === 'completed' && renderCompletedScreen()}
       {appState === 'idle' && (
         <View style={[
