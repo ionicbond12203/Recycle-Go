@@ -58,7 +58,7 @@ export class GeminiLiveClient {
     private sendSetup() {
         const setupMessage = {
             setup: {
-                model: "models/gemini-2.0-flash-exp", // Standard dev model ID that supports Live
+                model: "models/gemini-2.5-flash", // Standard dev model ID that supports Live
                 generation_config: {
                     response_mime_type: "application/json",
                 },

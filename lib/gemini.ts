@@ -421,7 +421,7 @@ ROLES:
         ]
     }];
 
-    const models = ["gemini-2.0-flash", "gemini-1.5-flash"];
+    const models = ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-2.5-flash", "gemini-flash-latest"];
 
     let actionTags: string[] = [];
 
@@ -522,7 +522,7 @@ ROLES:
 // 语音转动作处理：使用截图中的 Gemini 3 Flash 模型
 export async function processVoiceCommand(base64Audio: string, mimeType: string = "audio/mp4"): Promise<string> {
     const API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY || "";
-    const models = ["gemini-2.0-flash", "gemini-1.5-flash"];
+    const models = ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-2.5-flash", "gemini-flash-latest"];
     
     const prompt = `You are a voice command parser for a recycling app (Recycle-Go). 
 Listen to the user's audio and extract their intent.

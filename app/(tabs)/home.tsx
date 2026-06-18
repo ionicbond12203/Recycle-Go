@@ -290,6 +290,15 @@ export default function CollectorHomeScreen() {
             setRegion((prev: typeof region) => ({ ...prev, latitude, longitude }));
             await updateSupabaseLocation(latitude, longitude);
             console.log('Location synced after returning from Google Maps:', latitude, longitude);
+
+            // Check if arrived near contributor when returning to foreground
+            if (activeJob) {
+              const distToContributor = getHaversineDistance(latitude, longitude, activeJob.latitude, activeJob.longitude);
+              if (distToContributor < 150) {
+                console.log(`Arrived near contributor (${Math.round(distToContributor)}m) on returning from background.`);
+                handleArrived();
+              }
+            }
           } catch (e) {
             console.log('Failed to sync location on foreground:', e);
           }
@@ -651,6 +660,21 @@ export default function CollectorHomeScreen() {
 
   // getDistance is now imported from ../../lib/algorithms
 
+  /**
+   * Checks if the collector is close enough to the contributor's location
+   * to trigger the "Arrived" features (threshold: 150 meters).
+   * This is a fallback and auto-trigger for apartments/gated communities.
+   */
+  function checkArrivedThreshold(lat: number, lng: number) {
+    if ((appState === 'navigating' || appState === 'driving') && activeJob) {
+      const dist = getHaversineDistance(lat, lng, activeJob.latitude, activeJob.longitude);
+      if (dist < 150) {
+        console.log(`Auto-arrived! Distance to contributor: ${Math.round(dist)}m (< 150m)`);
+        handleArrived();
+      }
+    }
+  }
+
   // --- Tracking Logic ---
 
   /**
@@ -678,6 +702,7 @@ export default function CollectorHomeScreen() {
         }
         updateSupabaseLocation(latitude, longitude);
         checkProgress(latitude, longitude);
+        checkArrivedThreshold(latitude, longitude);
       }
     );
     setLocationSubscription(sub);
@@ -703,6 +728,7 @@ export default function CollectorHomeScreen() {
         const { latitude, longitude } = newLocation.coords;
         setRegion((prev: typeof region) => ({ ...prev, latitude, longitude }));
         updateSupabaseLocation(latitude, longitude);
+        checkArrivedThreshold(latitude, longitude);
       }
     );
     setLocationSubscription(sub);
@@ -1168,11 +1194,11 @@ export default function CollectorHomeScreen() {
     ]);
   };
 
-  const handleArrived = () => {
+  function handleArrived() {
     setAppState('arrived');
     stopLocationTracking();
     if (mapRef.current) mapRef.current.animateCamera({ pitch: 0, zoom: 18, center: { latitude: activeJob!.latitude, longitude: activeJob!.longitude } });
-  };
+  }
 
   const handleCollected = () => {
     setIsWeightModalOpen(true);
@@ -1477,13 +1503,28 @@ export default function CollectorHomeScreen() {
           <Text style={styles.recenterText}>Re-center</Text>
         </TouchableOpacity>
       </View>
-      <View style={[styles.bottomSheetNav, { paddingBottom: insets.bottom + 10 }]}>
-        <View style={[styles.bottomSheetContent, { justifyContent: 'center' }]}>
-          <View style={[styles.bottomStats, { alignItems: 'center' }]}>
-            <Text style={styles.bottomTimeBig}>{routeInfo ? Math.ceil(routeInfo.duration) : 0} min</Text>
-            <Text style={styles.bottomTimeSmall}>{routeInfo ? (routeInfo.distance).toFixed(1) : 0} km remaining</Text>
+      <View style={[
+        styles.bottomSheetNav, 
+        { 
+          paddingBottom: insets.bottom + 10,
+          backgroundColor: isDark ? '#1E201E' : '#FFF',
+          borderColor: colors.border,
+          borderWidth: isDark ? 1 : 0
+        }
+      ]}>
+        <View style={[styles.bottomSheetContent, { flex: 1, alignItems: 'flex-start', justifyContent: 'center' }]}>
+          <View style={styles.bottomStats}>
+            <Text style={[styles.bottomTimeBig, { color: colors.primary }]}>{routeInfo ? Math.ceil(routeInfo.duration) : 0} min</Text>
+            <Text style={[styles.bottomTimeSmall, { color: colors.textSecondary }]}>{routeInfo ? (routeInfo.distance).toFixed(1) : 0} km remaining</Text>
           </View>
         </View>
+        <TouchableOpacity 
+          style={[styles.arrivedButtonSmall, { backgroundColor: colors.primary }]} 
+          onPress={handleArrived}
+        >
+          <MaterialCommunityIcons name="map-marker-check" size={20} color="#fff" style={{ marginRight: 6 }} />
+          <Text style={styles.arrivedButtonSmallText}>Arrived</Text>
+        </TouchableOpacity>
       </View>
     </>
   );
@@ -1999,6 +2040,23 @@ const styles = StyleSheet.create({
   bottomTimeBig: { fontSize: 28, fontWeight: '900', color: '#10B981', letterSpacing: -1 },
   bottomTimeSmall: { fontSize: 14, fontWeight: '700', color: '#64748B' },
   exitButton: { width: 52, height: 52, backgroundColor: '#F1F5F9', borderRadius: 26, justifyContent: 'center', alignItems: 'center' },
+  arrivedButtonSmall: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#10B981',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5
+  },
+  arrivedButtonSmallText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 0.3
+  },
 
   // --- TRIP PANELS ---
   tripPanel: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#fff', padding: 30, borderTopLeftRadius: 40, borderTopRightRadius: 40, shadowOpacity: 0.2, elevation: 25 },
