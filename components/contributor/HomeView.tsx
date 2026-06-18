@@ -17,11 +17,11 @@ const CONTRIBUTOR_THEME = {
         primary: "#10B981", // Emerald 500
         primaryDark: "#064E3B", // Emerald 900
         secondary: "#34D399",
-        background: "#F0FDF4", // Mint white
-        card: "rgba(255, 255, 255, 0.9)",
+        background: "#F7FAF8",
+        card: "rgba(255, 255, 255, 0.96)",
         text: "#064E3B",
         textSecondary: "#4B5563",
-        border: "rgba(16, 185, 129, 0.1)",
+        border: "rgba(15, 23, 42, 0.08)",
         headerGradient: ["#064E3B", "#10B981"],
     },
     dark: {
@@ -298,11 +298,11 @@ export default function HomeView({ stats, userLocation, avatarUrl, recentTransac
 
 const styles = StyleSheet.create({
     scrollContainer: { flex: 1 },
-    heroSection: { paddingTop: 60, borderBottomLeftRadius: 36, borderBottomRightRadius: 36, paddingBottom: 36, marginBottom: 12 },
+    heroSection: { paddingTop: 60, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, paddingBottom: 30, marginBottom: 10 },
     // Header
     headerContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 10, marginBottom: 10 },
     headerGreeting: { fontSize: 13, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 1 },
-    headerName: { fontSize: 28, fontWeight: '900', letterSpacing: -1 },
+    headerName: { fontSize: 28, fontWeight: '900', letterSpacing: 0 },
     headerActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
     avatarContainer: { width: 48, height: 48, borderRadius: 24, borderWidth: 2, position: 'relative' },
     avatarImg: { width: '100%', height: '100%', borderRadius: 24 },
@@ -312,12 +312,12 @@ const styles = StyleSheet.create({
     sectionContainer: { paddingHorizontal: 24 },
     heroImpactContainer: { paddingHorizontal: 20, paddingVertical: 10 },
     sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 20 },
-    sectionTitle: { fontSize: 22, fontWeight: '900', letterSpacing: -0.5 },
+    sectionTitle: { fontSize: 22, fontWeight: '900', letterSpacing: 0 },
     sectionSubtitle: { fontSize: 13, fontWeight: '600', marginTop: 4, lineHeight: 18 },
     viewAllText: { fontSize: 13, fontWeight: '800' },
 
     // Impact Card
-    impactCard: { borderRadius: 32, padding: 24, shadowOpacity: 0.2, shadowRadius: 20, elevation: 15, borderWidth: 1 },
+    impactCard: { borderRadius: 20, padding: 22, shadowOpacity: 0.14, shadowRadius: 14, elevation: 8, borderWidth: 1 },
     impactHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 },
     impactTitle: { fontSize: 14, fontWeight: '900', letterSpacing: 1 },
     periodBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
@@ -325,48 +325,48 @@ const styles = StyleSheet.create({
     impactGrid: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' },
     impactItem: { flex: 1, alignItems: 'center' },
     impactItemBorder: { borderLeftWidth: 1, borderRightWidth: 1 },
-    impactValue: { fontSize: 26, fontWeight: '900', letterSpacing: -1 },
+    impactValue: { fontSize: 26, fontWeight: '900', letterSpacing: 0 },
     impactLabel: { fontSize: 10, fontWeight: '900', marginTop: 4, letterSpacing: 0.5 },
 
     // Grid
     gridContainer: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
     gridItem: { flex: 1, alignItems: 'center', gap: 10 },
-    gridImageBox: { width: '100%', aspectRatio: 1, borderRadius: 24, justifyContent: 'center', alignItems: 'center', overflow: 'hidden', borderWidth: 1, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 10, elevation: 5 },
+    gridImageBox: { width: '100%', aspectRatio: 1, borderRadius: 16, justifyContent: 'center', alignItems: 'center', overflow: 'hidden', borderWidth: 1, shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
     gridImage: { width: '100%', height: '100%', opacity: 1 },
     gridOverlay: { position: 'absolute', top: 8, right: 8, width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', alignItems: 'center' },
     gridLabel: { fontSize: 12, fontWeight: '700' },
 
     // Activity List
     activityList: { gap: 12, marginTop: 8 },
-    activityCard: { flexDirection: 'row', alignItems: 'center', padding: 18, borderRadius: 24, borderWidth: 1, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
+    activityCard: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 16, borderWidth: 1, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 },
     activityIconCircle: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginRight: 16 },
     activityContent: { flex: 1 },
     activityTitle: { fontSize: 16, fontWeight: '800' },
     activityTime: { fontSize: 12, fontWeight: '500', opacity: 0.6 },
     activityBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
     activityPoints: { fontSize: 13, fontWeight: '900' },
-    emptyCard: { padding: 24, borderRadius: 24, alignItems: 'center', marginTop: 10, borderStyle: 'dashed', borderWidth: 1 },
+    emptyCard: { padding: 24, borderRadius: 16, alignItems: 'center', marginTop: 10, borderStyle: 'dashed', borderWidth: 1 },
     emptyIconCircle: { width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
     emptyTitle: { fontSize: 17, fontWeight: '900', marginBottom: 6 },
     emptyDescription: { fontSize: 13, lineHeight: 19, textAlign: 'center' },
 
     // Eco Tip
-    tipCard: { borderRadius: 30, padding: 24, overflow: 'hidden', position: 'relative', shadowOpacity: 0.4, shadowRadius: 15, elevation: 12 },
+    tipCard: { borderRadius: 20, padding: 22, overflow: 'hidden', position: 'relative', shadowOpacity: 0.22, shadowRadius: 12, elevation: 7 },
     leafDecoration: { position: 'absolute', top: -30, right: -30, opacity: 0.2 },
     tipContentBox: { zIndex: 10, gap: 10 },
     tipBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     tipBadgeText: { color: '#A7F3D0', fontSize: 11, fontWeight: '900', letterSpacing: 2 },
-    tipMainTitle: { color: '#fff', fontSize: 28, fontWeight: '900', letterSpacing: -0.5 },
+    tipMainTitle: { color: '#fff', fontSize: 26, fontWeight: '900', letterSpacing: 0 },
     tipDescription: { fontSize: 15, lineHeight: 24, fontWeight: '500', opacity: 0.9, maxWidth: '90%' },
 
     // CTA Card
-    ctaCard: { borderRadius: 28, padding: 24, shadowColor: "#10B981", shadowOpacity: 0.4, shadowRadius: 15, elevation: 12 },
+    ctaCard: { borderRadius: 20, padding: 22, shadowColor: "#10B981", shadowOpacity: 0.22, shadowRadius: 12, elevation: 7 },
     ctaContent: { flexDirection: 'row', alignItems: 'center', gap: 18 },
     ctaIconBox: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center', shadowColor: "#000", shadowOpacity: 0.1, elevation: 5 },
     ctaTitle: { color: '#fff', fontSize: 20, fontWeight: '900', marginBottom: 4 },
     ctaDescription: { color: 'rgba(255,255,255,0.85)', fontSize: 14, lineHeight: 20 },
     quickActionRow: { flexDirection: 'row', gap: 12, marginTop: 12 },
-    quickAction: { flex: 1, minHeight: 52, borderRadius: 18, borderWidth: 1, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
+    quickAction: { flex: 1, minHeight: 52, borderRadius: 16, borderWidth: 1, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
     quickActionText: { flex: 1, fontSize: 12, fontWeight: '800' },
     manualLink: { alignSelf: 'center', padding: 10 },
     manualLinkText: { fontSize: 14, fontWeight: '700', textDecorationLine: 'underline' }

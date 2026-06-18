@@ -143,7 +143,12 @@ export default function ScannerView({ onScan, onClose }: ScannerViewProps) {
 
             <View style={styles.overlay}>
                 {/* Top Spacer */}
-                <View style={styles.maskRow} />
+                <View style={styles.maskRow}>
+                    <View style={styles.scanHeaderCard}>
+                        <Ionicons name="sparkles-outline" size={18} color="#A7F3D0" />
+                        <Text style={styles.scanHeaderText}>AI recycling scanner</Text>
+                    </View>
+                </View>
 
                 {/* Middle Row: Side Spacer - Frame - Side Spacer */}
                 <View style={styles.middleRow}>
@@ -179,8 +184,8 @@ export default function ScannerView({ onScan, onClose }: ScannerViewProps) {
                     {isScanning ? <ActivityIndicator color="#fff" /> : <View style={styles.captureInner} />}
                 </TouchableOpacity>
 
-                <TouchableOpacity onPress={handlePickImage} style={styles.galleryButton} disabled={isScanning}>
-                    <Ionicons name="images-outline" size={28} color="#fff" />
+                <TouchableOpacity onPress={handlePickImage} style={[styles.galleryButton, isScanning && styles.disabledControl]} disabled={isScanning}>
+                    <Ionicons name="images-outline" size={22} color="#064E3B" />
                     <Text style={styles.galleryLabel}>Gallery</Text>
                 </TouchableOpacity>
             </View>
@@ -202,7 +207,7 @@ const styles = StyleSheet.create({
     },
     maskRow: {
         flex: 1,
-        // backgroundColor: 'rgba(0,0,0,0.6)', // Removed as requested
+        backgroundColor: 'rgba(0,0,0,0.28)',
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -212,13 +217,14 @@ const styles = StyleSheet.create({
     },
     maskSide: {
         flex: 1,
-        // backgroundColor: 'rgba(0,0,0,0.6)', // Removed as requested
+        backgroundColor: 'rgba(0,0,0,0.28)',
     },
     scanFrame: {
         width: SCAN_FRAME_SIZE,
         height: SCAN_FRAME_SIZE,
         position: 'relative',
         overflow: 'hidden', // Keep scan line inside
+        borderRadius: 18,
     },
     corner: {
         position: 'absolute',
@@ -247,7 +253,7 @@ const styles = StyleSheet.create({
         color: 'white',
         fontSize: 16,
         marginTop: 20,
-        fontWeight: '600',
+        fontWeight: '800',
     },
     helperText: {
         color: 'rgba(255,255,255,0.8)',
@@ -268,9 +274,11 @@ const styles = StyleSheet.create({
         width: 80,
         height: 80,
         borderRadius: 40,
-        backgroundColor: 'rgba(255,255,255,0.3)',
+        backgroundColor: 'rgba(255,255,255,0.26)',
         justifyContent: 'center',
         alignItems: 'center',
+        borderWidth: 2,
+        borderColor: 'rgba(255,255,255,0.85)',
     },
     captureInner: {
         width: 60,
@@ -285,16 +293,36 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     galleryButton: {
-        width: 74,
+        minWidth: 92,
         height: 50,
+        borderRadius: 16,
+        backgroundColor: '#fff',
+        paddingHorizontal: 12,
         justifyContent: 'center',
         alignItems: 'center',
+        flexDirection: 'row',
+        gap: 6,
     },
     galleryLabel: {
+        color: '#064E3B',
+        fontSize: 12,
+        fontWeight: '900',
+    },
+    disabledControl: { opacity: 0.55 },
+    scanHeaderCard: {
+        marginTop: 54,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        borderRadius: 16,
+        backgroundColor: 'rgba(6, 78, 59, 0.86)',
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+    },
+    scanHeaderText: {
         color: '#fff',
-        fontSize: 11,
-        fontWeight: '700',
-        marginTop: 2,
+        fontSize: 13,
+        fontWeight: '900',
     },
     permissionButton: {
         padding: 15,

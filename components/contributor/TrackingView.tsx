@@ -129,7 +129,7 @@ export default function TrackingView({
             <Text style={[styles.confirmText, { color: colors.textSecondary }]}>
                 Waiting for a collector to accept your request. Keep this screen open during the demo to show live assignment.
             </Text>
-            <View style={[styles.waitingPanel, { backgroundColor: colors.backgroundSecondary }]}>
+            <View style={[styles.waitingPanel, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
                 <MaterialCommunityIcons name="truck-fast" size={24} color={colors.trackingBlue} />
                 <View style={{ flex: 1 }}>
                     <Text style={[styles.waitingTitle, { color: colors.text }]}>Searching nearby collectors</Text>
@@ -168,7 +168,7 @@ export default function TrackingView({
                 </TouchableOpacity>
             )}
 
-            <View style={[styles.driverRow, { backgroundColor: colors.backgroundSecondary }]}>
+            <View style={[styles.driverRow, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
                 <Image source={{ uri: collectorAvatar || "https://i.pravatar.cc/150?u=default" }} style={[styles.driverAvatar, { backgroundColor: colors.border }]} />
                 <View style={{ flex: 1, marginLeft: 15 }}>
                     <Text style={[styles.driverName, { color: colors.text }]}>{collectorName || "Unknown Collector"}</Text>
@@ -204,7 +204,7 @@ export default function TrackingView({
                 {renderMapContent()}
             </MapView>
 
-            <TouchableOpacity style={[styles.backButtonAbsolute, { top: insets.top + 12, backgroundColor: colors.card }]} onPress={onBack}>
+            <TouchableOpacity style={[styles.backButtonAbsolute, { top: Math.max(insets.top, 34) + 8, backgroundColor: colors.card, borderColor: colors.border }]} onPress={onBack}>
                 <Ionicons name="chevron-back" size={24} color={colors.text} />
             </TouchableOpacity>
 
@@ -215,27 +215,27 @@ export default function TrackingView({
 
 const styles = StyleSheet.create({
     truckMarker: { padding: 8, borderRadius: 20, borderWidth: 2, borderColor: '#fff' },
-    bottomSheet: { position: 'absolute', bottom: 0, left: 0, right: 0, borderTopLeftRadius: 25, borderTopRightRadius: 25, padding: 20, shadowOpacity: 0.15, shadowRadius: 10, elevation: 20 },
+    bottomSheet: { position: 'absolute', bottom: 0, left: 0, right: 0, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, shadowOpacity: 0.12, shadowRadius: 10, elevation: 16 },
     dragHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
     sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-    statusIcon: { width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center', alignSelf: 'center', marginBottom: 14 },
-    sheetTitle: { fontSize: 22, fontWeight: '900', textAlign: 'center', marginBottom: 8 },
+    statusIcon: { width: 58, height: 58, borderRadius: 18, justifyContent: 'center', alignItems: 'center', alignSelf: 'center', marginBottom: 14 },
+    sheetTitle: { fontSize: 21, fontWeight: '900', textAlign: 'center', marginBottom: 8 },
     confirmText: { marginBottom: 20, textAlign: 'center', lineHeight: 21 },
-    mainActionButton: { minHeight: 54, paddingVertical: 16, borderRadius: 15, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
-    mainActionText: { fontSize: 18, fontWeight: 'bold' },
-    waitingPanel: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 18, padding: 14 },
+    mainActionButton: { minHeight: 54, paddingVertical: 16, borderRadius: 16, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, shadowOpacity: 0.22, shadowRadius: 8, elevation: 4 },
+    mainActionText: { fontSize: 16, fontWeight: '900' },
+    waitingPanel: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 1, padding: 14 },
     waitingTitle: { fontSize: 15, fontWeight: '900' },
     waitingSub: { fontSize: 12, fontWeight: '600', marginTop: 2 },
-    backButtonAbsolute: { position: 'absolute', left: 20, padding: 8, borderRadius: 12, shadowOpacity: 0.1, elevation: 2 },
+    backButtonAbsolute: { position: 'absolute', left: 20, padding: 8, borderRadius: 12, borderWidth: 1, shadowOpacity: 0.1, elevation: 2 },
     trackingHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
     etaTime: { fontSize: 28, fontWeight: '800' },
     etaStatus: { fontSize: 14, marginTop: 2 },
     truckIconLarge: { width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center' },
     progressBarBg: { height: 6, borderRadius: 3, marginBottom: 20, width: '100%' },
     progressBarFill: { height: 6, borderRadius: 3 },
-    driverRow: { flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 15 },
-    driverAvatar: { width: 50, height: 50, borderRadius: 25 },
+    driverRow: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 16, borderWidth: 1 },
+    driverAvatar: { width: 50, height: 50, borderRadius: 16 },
     driverName: { fontSize: 16, fontWeight: 'bold' },
     driverPlate: { fontSize: 12, marginTop: 2 },
-    callBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
+    callBtn: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
 });

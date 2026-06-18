@@ -27,7 +27,7 @@ export default function ScanResultView({ item, onAddToCart, onCancel }: ScanResu
     const topLabels = item.labels.slice(0, 3);
 
     return (
-        <View style={[styles.fullScreenContainer, { backgroundColor: colors.background }]}>
+        <View style={[styles.fullScreenContainer, { backgroundColor: colors.backgroundSecondary }]}>
             <View style={[styles.resultImageContainer, { backgroundColor: colors.backgroundSecondary }]}>
                 <Image source={{ uri: item.imageUri }} style={styles.resultImage} resizeMode="contain" />
                 <View style={styles.bracketsContainer}>
@@ -36,12 +36,12 @@ export default function ScanResultView({ item, onAddToCart, onCancel }: ScanResu
                     <View style={[styles.bracket, styles.bracketBL]} />
                     <View style={[styles.bracket, styles.bracketBR]} />
                 </View>
-                <TouchableOpacity style={[styles.backButtonAbsolute, { backgroundColor: colors.background }]} onPress={onCancel}>
+                <TouchableOpacity style={[styles.backButtonAbsolute, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={onCancel}>
                     <Ionicons name="chevron-back" size={28} color={colors.text} />
                 </TouchableOpacity>
             </View>
 
-            <View style={[styles.resultDetailsCard, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
+            <View style={[styles.resultDetailsCard, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
                 <View style={[styles.statusPill, { backgroundColor: statusColor + '18' }]}>
                     <Ionicons name={item.recyclable ? "checkmark-circle" : "alert-circle"} size={18} color={statusColor} />
                     <Text style={[styles.statusText, { color: statusColor }]}>
@@ -51,15 +51,15 @@ export default function ScanResultView({ item, onAddToCart, onCancel }: ScanResu
                 <Text style={[styles.resultItemName, { color: colors.text }]}>{item.name}</Text>
                 <View style={[styles.resultStatsRow, { backgroundColor: colors.backgroundSecondary }]}>
                     <View style={styles.resultStatBox}>
-                        <Text style={styles.resultStatLabel}>{t('result.savedCO2')}</Text>
+                        <Text style={[styles.resultStatLabel, { color: colors.textSecondary }]}>{t('result.savedCO2')}</Text>
                         <Text style={[styles.resultStatValue, { color: colors.text }]}>{item.co2}</Text>
                     </View>
                     <View style={styles.resultStatBox}>
-                        <Text style={styles.resultStatLabel}>{t('result.material')}</Text>
+                        <Text style={[styles.resultStatLabel, { color: colors.textSecondary }]}>{t('result.material')}</Text>
                         <Text style={[styles.resultStatValue, { color: colors.text }]}>{item.material}</Text>
                     </View>
                     <View style={styles.resultStatBox}>
-                        <Text style={styles.resultStatLabel}>{t('result.points')}</Text>
+                        <Text style={[styles.resultStatLabel, { color: colors.textSecondary }]}>{t('result.points')}</Text>
                         <Text style={[styles.resultStatValue, { color: colors.text }]}>{item.points}</Text>
                     </View>
                 </View>
@@ -99,28 +99,28 @@ export default function ScanResultView({ item, onAddToCart, onCancel }: ScanResu
 
 const styles = StyleSheet.create({
     fullScreenContainer: { flex: 1 },
-    resultImageContainer: { flex: 2, justifyContent: 'center', alignItems: 'center', position: 'relative' },
-    resultImage: { width: '60%', height: '80%' },
+    resultImageContainer: { flex: 2, justifyContent: 'center', alignItems: 'center', position: 'relative', paddingHorizontal: 24 },
+    resultImage: { width: '68%', height: '78%' },
     bracketsContainer: { position: 'absolute', top: '10%', bottom: '10%', left: '10%', right: '10%', pointerEvents: 'none' },
     bracket: { position: 'absolute', width: 40, height: 40, borderColor: '#4CAF50', borderWidth: 4 },
     bracketTL: { top: 0, left: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopLeftRadius: 20 },
     bracketTR: { top: 0, right: 0, borderLeftWidth: 0, borderBottomWidth: 0, borderTopRightRadius: 20 },
     bracketBL: { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0, borderBottomLeftRadius: 20 },
     bracketBR: { bottom: 0, right: 0, borderLeftWidth: 0, borderTopWidth: 0, borderBottomRightRadius: 20 },
-    backButtonAbsolute: { position: 'absolute', top: 20, left: 20, padding: 8, borderRadius: 12, shadowOpacity: 0.1, elevation: 2 },
-    resultDetailsCard: { flex: 1, borderTopLeftRadius: 30, borderTopRightRadius: 30, marginTop: -30, padding: 30, shadowOpacity: 0.1, elevation: 10 },
-    statusPill: { alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 16, marginBottom: 14 },
+    backButtonAbsolute: { position: 'absolute', top: 24, left: 20, padding: 8, borderRadius: 12, borderWidth: 1, shadowOpacity: 0.1, elevation: 2 },
+    resultDetailsCard: { flex: 1, borderTopLeftRadius: 22, borderTopRightRadius: 22, marginTop: -24, padding: 24, borderWidth: 1, shadowOpacity: 0.08, elevation: 8 },
+    statusPill: { alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 14, marginBottom: 12 },
     statusText: { fontSize: 12, fontWeight: '900' },
     resultItemName: { fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 18 },
-    resultStatsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14, padding: 15, borderRadius: 15 },
+    resultStatsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14, padding: 14, borderRadius: 14 },
     resultStatBox: { alignItems: 'center', flex: 1 },
-    resultStatLabel: { fontSize: 11, color: '#888', marginBottom: 4, textTransform: 'uppercase' },
+    resultStatLabel: { fontSize: 10, fontWeight: '800', marginBottom: 4, textTransform: 'uppercase' },
     resultStatValue: { fontSize: 16, fontWeight: 'bold' },
     labelRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginBottom: 20 },
     labelChip: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 5 },
     labelText: { fontSize: 11, fontWeight: '700' },
-    primaryButton: { paddingVertical: 18, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-    primaryButtonText: { fontSize: 16, fontWeight: '700' },
+    primaryButton: { paddingVertical: 17, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+    primaryButtonText: { fontSize: 16, fontWeight: '900' },
     warningBox: { flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 12, marginBottom: 20, gap: 10 },
     warningText: { fontSize: 14, fontWeight: '600', flex: 1 },
 });

@@ -31,18 +31,19 @@ export default function CartView({ cart, onUpdateQuantity, onAddMore, onReviewAd
     const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
     const totalPoints = cart.reduce((sum, item) => sum + item.points * item.quantity, 0);
     const totalCO2 = cart.reduce((sum, item) => sum + (item.co2 || 0) * item.quantity, 0);
+    const headerTopPadding = Math.max(insets.top, 44) + 10;
 
     return (
-        <View style={[styles.fullScreenContainer, { backgroundColor: colors.background }]}>
-            <View style={[styles.cartHeader, { paddingTop: insets.top + 14, borderBottomColor: colors.divider }]}>
-                <TouchableOpacity onPress={onBack} style={[styles.headerIconButton, { backgroundColor: colors.backgroundSecondary }]}>
+        <View style={[styles.fullScreenContainer, { backgroundColor: colors.backgroundSecondary }]}>
+            <View style={[styles.cartHeader, { paddingTop: headerTopPadding, borderBottomColor: colors.divider, backgroundColor: colors.background }]}>
+                <TouchableOpacity onPress={onBack} style={[styles.headerIconButton, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
                     <Ionicons name="chevron-back" size={22} color={colors.text} />
                 </TouchableOpacity>
                 <Text style={[styles.cartTitle, { color: colors.text }]}>{t('cart.title')} ({totalItems})</Text>
                 <View style={{ width: 28 }} />
             </View>
 
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 108 }}>
                 {cart.length === 0 ? (
                     <View style={[styles.emptyCart, { backgroundColor: colors.card, borderColor: colors.border }]}>
                         <View style={[styles.emptyIcon, { backgroundColor: colors.badgeBackground }]}>
@@ -59,6 +60,16 @@ export default function CartView({ cart, onUpdateQuantity, onAddMore, onReviewAd
                     </View>
                 ) : (
                     <>
+                        <View style={styles.cartIntroRow}>
+                            <View>
+                                <Text style={[styles.sectionEyebrow, { color: colors.primary }]}>PICKUP BASKET</Text>
+                                <Text style={[styles.sectionTitle, { color: colors.text }]}>Ready for collection</Text>
+                            </View>
+                            <View style={[styles.cartBadge, { backgroundColor: colors.badgeBackground }]}>
+                                <Ionicons name="leaf-outline" size={16} color={colors.primary} />
+                                <Text style={[styles.cartBadgeText, { color: colors.primary }]}>Demo ready</Text>
+                            </View>
+                        </View>
                         <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                             <View style={styles.summaryItem}>
                                 <Text style={[styles.summaryValue, { color: colors.text }]}>{totalItems}</Text>
@@ -104,15 +115,16 @@ export default function CartView({ cart, onUpdateQuantity, onAddMore, onReviewAd
                 )}
 
                 <TouchableOpacity
-                    style={[styles.addMoreBtn, { marginBottom: 100, opacity: isLocked ? 0.5 : 1 }]}
+                    style={[styles.addMoreBtn, { borderColor: colors.border, backgroundColor: colors.card, opacity: isLocked ? 0.5 : 1 }]}
                     onPress={() => !isLocked && onAddMore()}
                     disabled={isLocked}
                 >
+                    <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
                     <Text style={[styles.addMoreText, { color: colors.text }]}>{t('actions.addMoreItems')}</Text>
                 </TouchableOpacity>
             </ScrollView>
 
-            <View style={[styles.cartFooter, { borderTopColor: colors.divider, backgroundColor: colors.background }]}>
+            <View style={[styles.cartFooter, { borderTopColor: colors.divider, backgroundColor: colors.background, paddingBottom: Math.max(insets.bottom, 12) + 12 }]}>
                 <TouchableOpacity
                     style={[
                         styles.primaryButton,
@@ -123,7 +135,7 @@ export default function CartView({ cart, onUpdateQuantity, onAddMore, onReviewAd
                     disabled={!isLocked && cart.length === 0}
                 >
                     <Text style={[styles.primaryButtonText, { color: colors.textInverse }]}>
-                        {isLocked ? "Track Active Request" : cart.length === 0 ? t('cart.addItemsFirst') || 'Add items to cart first' : t('actions.reviewAddress')}
+                        {isLocked ? "Track Active Request" : cart.length === 0 ? t('cart.addItemsFirst') || 'Add items to cart first' : "Review pickup address"}
                     </Text>
                 </TouchableOpacity>
             </View>
@@ -133,31 +145,36 @@ export default function CartView({ cart, onUpdateQuantity, onAddMore, onReviewAd
 
 const styles = StyleSheet.create({
     fullScreenContainer: { flex: 1, paddingBottom: 90 },
-    cartHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 18, borderBottomWidth: 1 },
-    headerIconButton: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
-    cartTitle: { fontSize: 18, fontWeight: 'bold' },
-    summaryCard: { flexDirection: 'row', borderRadius: 20, borderWidth: 1, padding: 16, marginBottom: 18 },
+    cartHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
+    headerIconButton: { width: 36, height: 36, borderRadius: 12, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
+    cartTitle: { fontSize: 18, fontWeight: '800' },
+    cartIntroRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
+    sectionEyebrow: { fontSize: 11, fontWeight: '900', letterSpacing: 0.8, marginBottom: 3 },
+    sectionTitle: { fontSize: 20, fontWeight: '900' },
+    cartBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 7, paddingHorizontal: 10, borderRadius: 12 },
+    cartBadgeText: { fontSize: 11, fontWeight: '900' },
+    summaryCard: { flexDirection: 'row', borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 14 },
     summaryItem: { flex: 1, alignItems: 'center' },
     summaryDivider: { borderLeftWidth: 1, borderRightWidth: 1 },
     summaryValue: { fontSize: 20, fontWeight: '900' },
     summaryLabel: { fontSize: 11, fontWeight: '700', marginTop: 3 },
-    emptyCart: { borderWidth: 1, borderRadius: 24, padding: 28, alignItems: 'center', marginTop: 40 },
+    emptyCart: { borderWidth: 1, borderRadius: 18, padding: 28, alignItems: 'center', marginTop: 40 },
     emptyIcon: { width: 68, height: 68, borderRadius: 34, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
     emptyTitle: { fontSize: 20, fontWeight: '900', marginBottom: 8 },
     emptyText: { fontSize: 14, textAlign: 'center', lineHeight: 20, marginBottom: 18 },
-    emptyAction: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, paddingHorizontal: 18, borderRadius: 18 },
+    emptyAction: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, paddingHorizontal: 18, borderRadius: 14 },
     emptyActionText: { fontWeight: '800' },
-    cartItemRow: { flexDirection: 'row', marginBottom: 14, alignItems: 'center', padding: 12, borderRadius: 18, borderWidth: 1 },
-    cartItemImage: { width: 60, height: 80, borderRadius: 10, resizeMode: 'contain' },
+    cartItemRow: { flexDirection: 'row', marginBottom: 12, alignItems: 'center', padding: 12, borderRadius: 16, borderWidth: 1 },
+    cartItemImage: { width: 64, height: 78, borderRadius: 12, resizeMode: 'contain' },
     cartItemInfo: { flex: 1, marginLeft: 15 },
     cartItemName: { fontSize: 15, fontWeight: '800' },
     cartItemMeta: { fontSize: 12, fontWeight: '600', marginTop: 3, marginBottom: 10 },
-    qtyControl: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', borderRadius: 20, padding: 2 },
+    qtyControl: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', borderRadius: 14, padding: 2 },
     qtyBtn: { width: 30, height: 30, justifyContent: 'center', alignItems: 'center' },
     qtyText: { marginHorizontal: 10, fontWeight: 'bold' },
-    addMoreBtn: { padding: 15, alignItems: 'center', marginBottom: 100 },
-    addMoreText: { fontWeight: '600' },
-    cartFooter: { padding: 20, borderTopWidth: 1 },
-    primaryButton: { paddingVertical: 18, borderRadius: 30, alignItems: 'center', justifyContent: 'center', shadowOpacity: 0.4, shadowRadius: 8, elevation: 5 },
-    primaryButtonText: { fontSize: 18, fontWeight: 'bold' },
+    addMoreBtn: { minHeight: 52, borderWidth: 1, borderRadius: 16, flexDirection: 'row', gap: 8, justifyContent: 'center', alignItems: 'center', marginTop: 2 },
+    addMoreText: { fontWeight: '800' },
+    cartFooter: { paddingHorizontal: 20, paddingTop: 14, borderTopWidth: 1 },
+    primaryButton: { paddingVertical: 17, borderRadius: 16, alignItems: 'center', justifyContent: 'center', shadowOpacity: 0.22, shadowRadius: 8, elevation: 4 },
+    primaryButtonText: { fontSize: 16, fontWeight: '900' },
 });
