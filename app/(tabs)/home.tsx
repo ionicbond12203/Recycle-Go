@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, AppStateStatus, BackHandler, Dimensions, FlatList, Image, Linking, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, AppStateStatus, BackHandler, Dimensions, FlatList, Image, Linking, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import MapViewDirections from 'react-native-maps-directions';
@@ -1162,10 +1162,49 @@ export default function CollectorHomeScreen() {
     }
   };
 
-  const openMapsNavigation = () => {
+  const launchInternalNavigation = () => {
+    setNavigationMode('internal');
+    setAppState('driving');
+    fetchRealRouteSteps();
+    if (mapRef.current) {
+      mapRef.current.animateCamera({
+        center: { latitude: region.latitude, longitude: region.longitude },
+        heading: 0,
+        pitch: DRIVING_VIEW_CONFIG.pitch,
+        zoom: DRIVING_VIEW_CONFIG.zoom,
+        altitude: DRIVING_VIEW_CONFIG.altitude
+      }, { duration: 1000 });
+    }
+  };
+
+  const openMapsNavigation = async () => {
     if (!activeJob) return;
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${activeJob.latitude},${activeJob.longitude}&travelmode=driving`;
-    Linking.openURL(url).catch(err => Alert.alert("Error", "Could not open map app."));
+    const destination = `${activeJob.latitude},${activeJob.longitude}`;
+    const nativeUrl = `google.navigation:q=${destination}&mode=d`;
+    const webUrl = `https://www.google.com/maps/dir/?api=1&destination=${destination}&travelmode=driving`;
+
+    try {
+      if (Platform.OS === 'android' && await Linking.canOpenURL(nativeUrl)) {
+        await Linking.openURL(nativeUrl);
+        return;
+      }
+      await Linking.openURL(webUrl);
+    } catch {
+      Alert.alert("Error", "Could not open Google Maps. You can still navigate inside Recycle Go.");
+    }
+  };
+
+  const launchExternalNavigation = () => {
+    setNavigationMode('external');
+    setAppState('driving');
+    openMapsNavigation();
+    if (mapRef.current) {
+      mapRef.current.animateCamera({
+        center: { latitude: region.latitude, longitude: region.longitude },
+        pitch: 0,
+        zoom: 16
+      });
+    }
   };
 
   const fetchRealRouteSteps = async () => {
@@ -1187,10 +1226,10 @@ export default function CollectorHomeScreen() {
   };
 
   const handleStartRide = () => {
-    Alert.alert(t('collector.startNav'), t('collector.chooseNav'), [
-      { text: "Open Google Maps", onPress: () => { setNavigationMode('external'); setAppState('driving'); openMapsNavigation(); if (mapRef.current) mapRef.current.animateCamera({ center: { latitude: region.latitude, longitude: region.longitude }, pitch: 0, zoom: 16 }); } },
-      { text: "Use In-App Map", onPress: () => { setNavigationMode('internal'); setAppState('driving'); fetchRealRouteSteps(); if (mapRef.current) mapRef.current.animateCamera({ center: { latitude: region.latitude, longitude: region.longitude }, heading: 0, pitch: DRIVING_VIEW_CONFIG.pitch, zoom: DRIVING_VIEW_CONFIG.zoom, altitude: DRIVING_VIEW_CONFIG.altitude }, { duration: 1000 }); }, style: "default" },
-      { text: t('common.cancel'), style: "cancel" }
+    Alert.alert("Start navigation", "Choose how you want to drive to this pickup.", [
+      { text: "Navigate in Recycle Go", onPress: launchInternalNavigation, style: "default" },
+      { text: "Open Google Maps", onPress: launchExternalNavigation },
+      { text: t('common.cancel') || "Cancel", style: "cancel" }
     ]);
   };
 
@@ -1467,7 +1506,7 @@ export default function CollectorHomeScreen() {
     </View >
   );
 
-  // ... (Keeping internal/external navigation overlays exactly as they were)
+  // Driving overlays for Recycle Go navigation and external Google Maps mode.
   /**
    * Renders the custom Turn-by-Turn navigation overlay.
    * - Top banner: Next maneuver instruction.
@@ -1478,13 +1517,19 @@ export default function CollectorHomeScreen() {
     <>
       <View style={[styles.topNavContainer, { paddingTop: insets.top }]}>
         <View style={styles.greenBanner}>
+          <View style={styles.inAppNavLabel}>
+            <MaterialCommunityIcons name="map-marker-path" size={14} color="#D1FAE5" />
+            <Text style={styles.inAppNavLabelText}>Recycle Go navigation</Text>
+          </View>
           <View style={styles.bannerMainContent}>
             <MaterialCommunityIcons name={nextTurn.icon} size={36} color="#fff" style={{ marginRight: 15 }} />
             <View style={{ flex: 1 }}>
               <Text style={styles.instructionMain} numberOfLines={2}>{nextTurn.instruction}</Text>
-              <Text style={styles.instructionSub} numberOfLines={1}>{nextTurn.distance} • {nextTurn.subInstruction}</Text>
+              <Text style={styles.instructionSub} numberOfLines={1}>{nextTurn.distance} - {nextTurn.subInstruction}</Text>
             </View>
-            <TouchableOpacity style={styles.micButton}><Ionicons name="mic" size={24} color="#333" /></TouchableOpacity>
+            <TouchableOpacity style={styles.micButton} onPress={openMapsNavigation}>
+              <MaterialCommunityIcons name="google-maps" size={23} color="#1A73E8" />
+            </TouchableOpacity>
           </View>
           {routeStepsRef.current.length > currentStepIndexRef.current + 1 && (
             <View style={styles.thenBanner}><Text style={styles.thenText}>Next: {stripHtml(routeStepsRef.current[currentStepIndexRef.current + 1]?.html_instructions || "Arrive")}</Text></View>
@@ -1512,10 +1557,15 @@ export default function CollectorHomeScreen() {
           borderWidth: isDark ? 1 : 0
         }
       ]}>
-        <View style={[styles.bottomSheetContent, { flex: 1, alignItems: 'flex-start', justifyContent: 'center' }]}>
-          <View style={styles.bottomStats}>
+        <View style={styles.bottomNavStatsRow}>
+          <View style={styles.bottomMetric}>
+            <Text style={[styles.bottomMetricLabel, { color: colors.textSecondary }]}>ETA</Text>
             <Text style={[styles.bottomTimeBig, { color: colors.primary }]}>{routeInfo ? Math.ceil(routeInfo.duration) : 0} min</Text>
-            <Text style={[styles.bottomTimeSmall, { color: colors.textSecondary }]}>{routeInfo ? (routeInfo.distance).toFixed(1) : 0} km remaining</Text>
+          </View>
+          <View style={[styles.bottomMetricDivider, { backgroundColor: colors.border }]} />
+          <View style={styles.bottomMetric}>
+            <Text style={[styles.bottomMetricLabel, { color: colors.textSecondary }]}>Remaining</Text>
+            <Text style={[styles.bottomTimeSmall, { color: colors.text }]}>{routeInfo ? (routeInfo.distance).toFixed(1) : 0} km</Text>
           </View>
         </View>
         <TouchableOpacity 
@@ -1544,15 +1594,25 @@ export default function CollectorHomeScreen() {
       ) : (
         <>
           <View style={styles.tripHeader}>
-            <View style={styles.pulsingDotContainer}>
-              <View style={styles.pulsingDot} /><Text style={styles.tripStatusText}>Trip in Progress...</Text>
+            <View style={styles.externalMapIcon}>
+              <MaterialCommunityIcons name="google-maps" size={32} color="#1A73E8" />
             </View>
-            <TouchableOpacity style={styles.reopenMapsButton} onPress={openMapsNavigation}><MaterialCommunityIcons name="google-maps" size={20} color="#1A73E8" /><Text style={styles.reopenMapsText}>Open Maps</Text></TouchableOpacity>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.tripEyebrow}>External navigation</Text>
+              <Text style={styles.tripStatusText}>Google Maps is active</Text>
+            </View>
           </View>
-          <Text style={styles.tripSubText}>Navigation is active in Google Maps. Return here when you reach the location.</Text>
-          <TouchableOpacity style={styles.arrivedButtonLarge} onPress={handleArrived}>
-            <MaterialCommunityIcons name="map-marker-check" size={24} color="#fff" style={{ marginRight: 8 }} /><Text style={styles.buttonText}>I Have Arrived</Text>
-          </TouchableOpacity>
+          <Text style={styles.tripSubText}>Use Google Maps for turn-by-turn driving. Return to Recycle Go after reaching the contributor to complete collection.</Text>
+          <View style={styles.externalActionsRow}>
+            <TouchableOpacity style={styles.reopenMapsButton} onPress={openMapsNavigation}>
+              <MaterialCommunityIcons name="google-maps" size={20} color="#1A73E8" />
+              <Text style={styles.reopenMapsText}>Open Maps again</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.arrivedButtonLarge, { backgroundColor: colors.primary }]} onPress={handleArrived}>
+              <MaterialCommunityIcons name="map-marker-check" size={22} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={styles.buttonText}>I Have Arrived</Text>
+            </TouchableOpacity>
+          </View>
         </>
       )}
     </View>
@@ -2018,9 +2078,11 @@ const styles = StyleSheet.create({
 
   // --- INTERNAL NAV OVERLAY ---
   topNavContainer: { position: 'absolute', top: 50, left: 20, right: 20, zIndex: 10 },
-  greenBanner: { backgroundColor: '#10B981', borderRadius: 24, padding: 20, shadowOpacity: 0.3, shadowRadius: 20, elevation: 12 },
+  greenBanner: { backgroundColor: '#0F8F56', borderRadius: 22, padding: 18, shadowColor: '#064E3B', shadowOpacity: 0.28, shadowRadius: 20, elevation: 12 },
+  inAppNavLabel: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
+  inAppNavLabelText: { color: '#D1FAE5', fontSize: 11, fontWeight: '900', letterSpacing: 0.7, textTransform: 'uppercase' },
   bannerMainContent: { flexDirection: 'row', alignItems: 'center' },
-  instructionMain: { flex: 1, color: '#fff', fontSize: 24, fontWeight: '900', letterSpacing: -0.5 },
+  instructionMain: { flex: 1, color: '#fff', fontSize: 23, fontWeight: '900' },
   instructionSub: { color: 'rgba(255,255,255,0.85)', fontSize: 15, fontWeight: '600', marginTop: 4 },
   micButton: { width: 44, height: 44, backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
   thenBanner: { marginTop: -10, backgroundColor: '#065F46', paddingTop: 20, paddingBottom: 10, paddingHorizontal: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, zIndex: -1 },
@@ -2030,15 +2092,19 @@ const styles = StyleSheet.create({
   floatingCircleBtn: { width: 52, height: 52, backgroundColor: '#fff', borderRadius: 26, justifyContent: 'center', alignItems: 'center', shadowOpacity: 0.2, shadowRadius: 10, elevation: 8 },
 
   recenterButtonPos: { position: 'absolute', left: 20 },
-  recenterButton: { flexDirection: 'row', backgroundColor: '#fff', paddingVertical: 12, paddingHorizontal: 18, borderRadius: 25, alignItems: 'center', shadowOpacity: 0.2, elevation: 8 },
-  recenterText: { marginLeft: 8, fontWeight: '800', fontSize: 13, color: '#333' },
+  recenterButton: { flexDirection: 'row', backgroundColor: '#fff', paddingVertical: 13, paddingHorizontal: 18, borderRadius: 18, alignItems: 'center', shadowColor: '#0F172A', shadowOpacity: 0.18, shadowRadius: 12, elevation: 9 },
+  recenterText: { marginLeft: 8, fontWeight: '900', fontSize: 13, color: '#1E293B' },
 
-  bottomSheetNav: { position: 'absolute', bottom: 20, left: 20, right: 20, backgroundColor: '#fff', borderRadius: 28, padding: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', shadowOpacity: 0.2, shadowRadius: 20, elevation: 15 },
+  bottomSheetNav: { position: 'absolute', bottom: 20, left: 20, right: 20, backgroundColor: '#fff', borderRadius: 24, padding: 18, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', shadowColor: '#0F172A', shadowOpacity: 0.18, shadowRadius: 20, elevation: 15 },
   bottomSheetContent: { flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   altRouteButton: { padding: 8 },
   bottomStats: { alignItems: 'center' },
-  bottomTimeBig: { fontSize: 28, fontWeight: '900', color: '#10B981', letterSpacing: -1 },
-  bottomTimeSmall: { fontSize: 14, fontWeight: '700', color: '#64748B' },
+  bottomNavStatsRow: { flex: 1, flexDirection: 'row', alignItems: 'center', marginRight: 14 },
+  bottomMetric: { minWidth: 82 },
+  bottomMetricLabel: { fontSize: 10, fontWeight: '900', letterSpacing: 0.7, textTransform: 'uppercase', marginBottom: 3 },
+  bottomMetricDivider: { width: 1, height: 36, marginHorizontal: 16 },
+  bottomTimeBig: { fontSize: 25, fontWeight: '900', color: '#10B981' },
+  bottomTimeSmall: { fontSize: 18, fontWeight: '900', color: '#64748B' },
   exitButton: { width: 52, height: 52, backgroundColor: '#F1F5F9', borderRadius: 26, justifyContent: 'center', alignItems: 'center' },
   arrivedButtonSmall: {
     paddingHorizontal: 20,
@@ -2059,13 +2125,16 @@ const styles = StyleSheet.create({
   },
 
   // --- TRIP PANELS ---
-  tripPanel: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#fff', padding: 30, borderTopLeftRadius: 40, borderTopRightRadius: 40, shadowOpacity: 0.2, elevation: 25 },
-  tripHeader: { alignItems: 'center', marginBottom: 25 },
+  tripPanel: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#fff', padding: 28, borderTopLeftRadius: 32, borderTopRightRadius: 32, shadowColor: '#0F172A', shadowOpacity: 0.18, shadowRadius: 24, elevation: 25 },
+  tripHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 18 },
   pulsingDotContainer: { width: 72, height: 72, backgroundColor: '#ECFDF5', borderRadius: 36, justifyContent: 'center', alignItems: 'center', marginBottom: 15 },
   pulsingDot: { width: 24, height: 24, backgroundColor: '#10B981', borderRadius: 12 },
-  tripStatusText: { fontSize: 22, fontWeight: '900', color: '#0F172A', letterSpacing: -0.5 },
-  tripSubText: { color: '#64748B', textAlign: 'center', fontSize: 15, lineHeight: 22 },
-  reopenMapsButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF6FF', paddingVertical: 12, paddingHorizontal: 20, borderRadius: 25, marginTop: 20 },
+  externalMapIcon: { width: 56, height: 56, backgroundColor: '#EFF6FF', borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginRight: 14 },
+  tripEyebrow: { color: '#2563EB', fontSize: 11, fontWeight: '900', letterSpacing: 0.7, textTransform: 'uppercase', marginBottom: 4 },
+  tripStatusText: { fontSize: 22, fontWeight: '900', color: '#0F172A' },
+  tripSubText: { color: '#64748B', fontSize: 15, lineHeight: 22 },
+  externalActionsRow: { marginTop: 22, gap: 12 },
+  reopenMapsButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#EFF6FF', paddingVertical: 14, paddingHorizontal: 20, borderRadius: 18 },
   reopenMapsText: { color: '#2563EB', fontWeight: '800', marginLeft: 10 },
 
   searchingPanel: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#fff', padding: 32, borderTopLeftRadius: 40, borderTopRightRadius: 40, shadowOpacity: 0.1, elevation: 20 },
@@ -2079,7 +2148,7 @@ const styles = StyleSheet.create({
   arrivedPanel: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#fff', padding: 32, borderTopLeftRadius: 40, borderTopRightRadius: 40, alignItems: 'center', shadowOpacity: 0.2, elevation: 25 },
   arrivedTitle: { fontSize: 28, fontWeight: '900', marginBottom: 8, color: '#0F172A', letterSpacing: -1 },
   arrivedSub: { fontSize: 16, color: '#64748B', marginBottom: 30, textAlign: 'center', fontWeight: '500' },
-  arrivedButtonLarge: { width: '100%', paddingVertical: 18, borderRadius: 24, alignItems: 'center', shadowColor: '#10B981', shadowOpacity: 0.3, shadowRadius: 15, elevation: 10 },
+  arrivedButtonLarge: { width: '100%', paddingVertical: 18, borderRadius: 20, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', shadowColor: '#10B981', shadowOpacity: 0.3, shadowRadius: 15, elevation: 10 },
   collectedButton: { flex: 1, paddingVertical: 18, borderRadius: 20, alignItems: 'center', shadowColor: '#10B981', shadowOpacity: 0.2, shadowRadius: 10, elevation: 8 },
 
   completedContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
