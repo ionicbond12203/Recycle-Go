@@ -154,6 +154,7 @@ export default function ScannerView({ onScan, onClose }: ScannerViewProps) {
                 <View style={styles.middleRow}>
                     <View style={styles.maskSide} />
                     <View style={styles.scanFrame}>
+                        <View style={styles.frameGlow} />
                         <View style={[styles.corner, styles.topLeft]} />
                         <View style={[styles.corner, styles.topRight]} />
                         <View style={[styles.corner, styles.bottomLeft]} />
@@ -166,7 +167,10 @@ export default function ScannerView({ onScan, onClose }: ScannerViewProps) {
                 {/* Bottom Spacer */}
                 <View style={styles.maskRow}>
                     <Text style={styles.instructionText}>{t('scanner.pointCamera')}</Text>
-                    <Text style={styles.helperText}>Use gallery for a reliable emulator demo.</Text>
+                    <View style={styles.helperPill}>
+                        <Ionicons name="images-outline" size={14} color="#A7F3D0" />
+                        <Text style={styles.helperText}>Gallery is best for emulator demo</Text>
+                    </View>
                 </View>
             </View>
 
@@ -225,6 +229,17 @@ const styles = StyleSheet.create({
         position: 'relative',
         overflow: 'hidden', // Keep scan line inside
         borderRadius: 18,
+        backgroundColor: 'rgba(0,0,0,0.08)',
+    },
+    frameGlow: {
+        ...StyleSheet.absoluteFillObject,
+        borderRadius: 18,
+        borderWidth: 1,
+        borderColor: 'rgba(167, 243, 208, 0.5)',
+        shadowColor: '#4ADE80',
+        shadowOpacity: 0.9,
+        shadowRadius: 18,
+        elevation: 8,
     },
     corner: {
         position: 'absolute',
@@ -255,12 +270,8 @@ const styles = StyleSheet.create({
         marginTop: 20,
         fontWeight: '800',
     },
-    helperText: {
-        color: 'rgba(255,255,255,0.8)',
-        fontSize: 13,
-        marginTop: 8,
-        fontWeight: '600',
-    },
+    helperPill: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, backgroundColor: 'rgba(6, 78, 59, 0.72)' },
+    helperText: { color: 'rgba(255,255,255,0.9)', fontSize: 12, fontWeight: '800' },
     controls: {
         position: 'absolute',
         bottom: 50,
@@ -302,6 +313,10 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         flexDirection: 'row',
         gap: 6,
+        shadowColor: '#000',
+        shadowOpacity: 0.22,
+        shadowRadius: 10,
+        elevation: 6,
     },
     galleryLabel: {
         color: '#064E3B',

@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import LinearGradient from "react-native-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useTheme } from "../../contexts/ThemeContext";
@@ -70,7 +71,12 @@ export default function CartView({ cart, onUpdateQuantity, onAddMore, onReviewAd
                                 <Text style={[styles.cartBadgeText, { color: colors.primary }]}>Demo ready</Text>
                             </View>
                         </View>
-                        <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                        <LinearGradient
+                            colors={[colors.card, colors.background]}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={[styles.summaryCard, { borderColor: colors.border, shadowColor: colors.shadow }]}
+                        >
                             <View style={styles.summaryItem}>
                                 <Text style={[styles.summaryValue, { color: colors.text }]}>{totalItems}</Text>
                                 <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Items</Text>
@@ -83,11 +89,13 @@ export default function CartView({ cart, onUpdateQuantity, onAddMore, onReviewAd
                                 <Text style={[styles.summaryValue, { color: colors.text }]}>{totalCO2.toFixed(1)}kg</Text>
                                 <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>CO2 saved</Text>
                             </View>
-                        </View>
+                        </LinearGradient>
 
                         {cart.map((item) => (
-                            <View key={item.id} style={[styles.cartItemRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                                <Image source={{ uri: item.imageUri }} style={[styles.cartItemImage, { backgroundColor: colors.border }]} />
+                            <View key={item.id} style={[styles.cartItemRow, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
+                                <View style={[styles.cartItemImageShell, { backgroundColor: colors.backgroundSecondary }]}>
+                                    <Image source={{ uri: item.imageUri }} style={styles.cartItemImage} />
+                                </View>
                                 <View style={styles.cartItemInfo}>
                                     <Text style={[styles.cartItemName, { color: colors.text }]}>{item.name}</Text>
                                     <Text style={[styles.cartItemMeta, { color: colors.textSecondary }]}>{item.material} - {item.points} pts each</Text>
@@ -153,7 +161,7 @@ const styles = StyleSheet.create({
     sectionTitle: { fontSize: 20, fontWeight: '900' },
     cartBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 7, paddingHorizontal: 10, borderRadius: 12 },
     cartBadgeText: { fontSize: 11, fontWeight: '900' },
-    summaryCard: { flexDirection: 'row', borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 14 },
+    summaryCard: { flexDirection: 'row', borderRadius: 18, borderWidth: 1, padding: 16, marginBottom: 16, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 },
     summaryItem: { flex: 1, alignItems: 'center' },
     summaryDivider: { borderLeftWidth: 1, borderRightWidth: 1 },
     summaryValue: { fontSize: 20, fontWeight: '900' },
@@ -164,8 +172,9 @@ const styles = StyleSheet.create({
     emptyText: { fontSize: 14, textAlign: 'center', lineHeight: 20, marginBottom: 18 },
     emptyAction: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, paddingHorizontal: 18, borderRadius: 14 },
     emptyActionText: { fontWeight: '800' },
-    cartItemRow: { flexDirection: 'row', marginBottom: 12, alignItems: 'center', padding: 12, borderRadius: 16, borderWidth: 1 },
-    cartItemImage: { width: 64, height: 78, borderRadius: 12, resizeMode: 'contain' },
+    cartItemRow: { flexDirection: 'row', marginBottom: 12, alignItems: 'center', padding: 12, borderRadius: 16, borderWidth: 1, shadowOpacity: 0.06, shadowRadius: 10, elevation: 3 },
+    cartItemImageShell: { width: 68, height: 82, borderRadius: 14, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+    cartItemImage: { width: 62, height: 76, resizeMode: 'contain' },
     cartItemInfo: { flex: 1, marginLeft: 15 },
     cartItemName: { fontSize: 15, fontWeight: '800' },
     cartItemMeta: { fontSize: 12, fontWeight: '600', marginTop: 3, marginBottom: 10 },

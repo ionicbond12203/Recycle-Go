@@ -103,7 +103,7 @@ export default function TrackingView({
     );
 
     const renderIdleSheet = () => (
-        <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 20, backgroundColor: colors.card, shadowColor: colors.shadow }]}>
+        <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 20, backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
             <View style={[styles.dragHandle, { backgroundColor: colors.divider }]} />
             <View style={[styles.statusIcon, { backgroundColor: colors.badgeBackground }]}>
                 <MaterialCommunityIcons name="map-marker-radius" size={30} color={colors.primary} />
@@ -120,7 +120,7 @@ export default function TrackingView({
     );
 
     const renderWaitingSheet = () => (
-        <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 20, backgroundColor: colors.card, shadowColor: colors.shadow }]}>
+        <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 20, backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
             <View style={[styles.dragHandle, { backgroundColor: colors.divider }]} />
             <View style={[styles.statusIcon, { backgroundColor: colors.trackingBlueLight }]}>
                 <ActivityIndicator color={colors.trackingBlue} />
@@ -140,7 +140,7 @@ export default function TrackingView({
     );
 
     const renderTrackingSheet = () => (
-        <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 20, backgroundColor: colors.card, shadowColor: colors.shadow }]}>
+        <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 20, backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
             <View style={[styles.dragHandle, { backgroundColor: colors.divider }]} />
 
             <View style={styles.trackingHeader}>
@@ -152,7 +152,7 @@ export default function TrackingView({
                         {routeInfo && routeInfo.duration < 1 ? t('tracking.arrived') : t('tracking.onTheWay')}
                     </Text>
                 </View>
-                <View style={[styles.truckIconLarge, { backgroundColor: colors.trackingBlueLight }]}>
+                <View style={[styles.truckIconLarge, { backgroundColor: colors.trackingBlueLight, shadowColor: colors.trackingBlue }]}>
                     <MaterialCommunityIcons name="truck-fast" size={30} color={colors.trackingBlue} />
                 </View>
             </View>
@@ -215,7 +215,7 @@ export default function TrackingView({
 
 const styles = StyleSheet.create({
     truckMarker: { padding: 8, borderRadius: 20, borderWidth: 2, borderColor: '#fff' },
-    bottomSheet: { position: 'absolute', bottom: 0, left: 0, right: 0, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, shadowOpacity: 0.12, shadowRadius: 10, elevation: 16 },
+    bottomSheet: { position: 'absolute', bottom: 0, left: 0, right: 0, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderWidth: 1, padding: 20, shadowOpacity: 0.18, shadowRadius: 14, elevation: 18 },
     dragHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
     sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
     statusIcon: { width: 58, height: 58, borderRadius: 18, justifyContent: 'center', alignItems: 'center', alignSelf: 'center', marginBottom: 14 },
@@ -230,7 +230,7 @@ const styles = StyleSheet.create({
     trackingHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
     etaTime: { fontSize: 28, fontWeight: '800' },
     etaStatus: { fontSize: 14, marginTop: 2 },
-    truckIconLarge: { width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center' },
+    truckIconLarge: { width: 60, height: 60, borderRadius: 18, justifyContent: 'center', alignItems: 'center', shadowOpacity: 0.16, shadowRadius: 10, elevation: 4 },
     progressBarBg: { height: 6, borderRadius: 3, marginBottom: 20, width: '100%' },
     progressBarFill: { height: 6, borderRadius: 3 },
     driverRow: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 16, borderWidth: 1 },

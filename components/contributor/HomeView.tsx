@@ -116,7 +116,7 @@ export default function HomeView({ stats, userLocation, avatarUrl, recentTransac
 
                 {/* --- ENVIRONMENTAL IMPACT CARD (GLASSMORHISM) --- */}
                 <View style={styles.heroImpactContainer}>
-                    <View style={[styles.impactCard, { backgroundColor: isDark ? 'rgba(2, 44, 34, 0.4)' : 'rgba(255, 255, 255, 0.4)', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.3)' }]}>
+                    <View style={[styles.impactCard, { backgroundColor: isDark ? 'rgba(2, 44, 34, 0.4)' : 'rgba(255, 255, 255, 0.52)', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.45)', shadowColor: '#022C22' }]}>
                         <View style={styles.impactHeader}>
                             <View>
                                 <Text style={[styles.impactTitle, { color: isDark ? '#FFF' : '#047857' }]}>{t('home.environmentalImpact')}</Text>
@@ -156,7 +156,7 @@ export default function HomeView({ stats, userLocation, avatarUrl, recentTransac
             {/* --- GET STARTED CTA (NEW USER) --- */}
             <View style={[styles.sectionContainer, { marginTop: 24 }]}>
                 <TouchableOpacity
-                    style={[styles.ctaCard, { backgroundColor: theme.primary }]}
+                    style={[styles.ctaCard, { backgroundColor: theme.primary, shadowColor: theme.primaryDark }]}
                     onPress={onStartScan}
                 >
                     <View style={styles.ctaContent}>
@@ -174,11 +174,11 @@ export default function HomeView({ stats, userLocation, avatarUrl, recentTransac
                 </TouchableOpacity>
 
                 <View style={styles.quickActionRow}>
-                    <TouchableOpacity style={[styles.quickAction, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={onManualAdd}>
+                    <TouchableOpacity style={[styles.quickAction, { backgroundColor: theme.card, borderColor: theme.border, shadowColor: '#022C22' }]} onPress={onManualAdd}>
                         <MaterialCommunityIcons name="keyboard-outline" size={22} color={theme.primary} />
                         <Text style={[styles.quickActionText, { color: theme.text }]}>Manual add</Text>
                     </TouchableOpacity>
-                    <View style={[styles.quickAction, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                    <View style={[styles.quickAction, { backgroundColor: theme.card, borderColor: theme.border, shadowColor: '#022C22' }]}>
                         <MaterialCommunityIcons name={locationReady ? "map-marker-check" : "map-marker-alert"} size={22} color={locationReady ? theme.primary : "#F59E0B"} />
                         <Text style={[styles.quickActionText, { color: theme.text }]}>{locationReady ? "Location ready" : "Location pending"}</Text>
                     </View>
@@ -206,7 +206,7 @@ export default function HomeView({ stats, userLocation, avatarUrl, recentTransac
                             style={styles.gridItem}
                             onPress={() => setSelectedMaterial(cat.id as MaterialType)}
                         >
-                            <View style={[styles.gridImageBox, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                            <View style={[styles.gridImageBox, { backgroundColor: theme.card, borderColor: theme.border, shadowColor: '#022C22' }]}>
                                 <Image source={{ uri: cat.image }} style={styles.gridImage} resizeMode="cover" />
                                 <View style={styles.gridOverlay}>
                                     <MaterialCommunityIcons name="information-outline" size={16} color="#fff" />
@@ -225,7 +225,7 @@ export default function HomeView({ stats, userLocation, avatarUrl, recentTransac
                 {recentTransactions && recentTransactions.length > 0 ? (
                     <View style={styles.activityList}>
                         {recentTransactions.map((t, i) => (
-                            <TouchableOpacity key={i} style={[styles.activityCard, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={() => handleTransactionPress(t)}>
+                            <TouchableOpacity key={i} style={[styles.activityCard, { backgroundColor: theme.card, borderColor: theme.border, shadowColor: '#022C22' }]} onPress={() => handleTransactionPress(t)}>
                                 <View style={[styles.activityIconCircle, { backgroundColor: isDark ? 'rgba(74,222,128,0.2)' : '#ecfdf5' }]}>
                                     <MaterialCommunityIcons name="check-decagram" size={24} color={theme.primary} />
                                 </View>
@@ -240,7 +240,7 @@ export default function HomeView({ stats, userLocation, avatarUrl, recentTransac
                         ))}
                     </View>
                 ) : (
-                    <View style={[styles.emptyCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                    <View style={[styles.emptyCard, { backgroundColor: theme.card, borderColor: theme.border, shadowColor: '#022C22' }]}>
                         <View style={[styles.emptyIconCircle, { backgroundColor: isDark ? 'rgba(74,222,128,0.18)' : '#ecfdf5' }]}>
                             <MaterialCommunityIcons name="history" size={28} color={theme.primary} />
                         </View>
@@ -298,7 +298,7 @@ export default function HomeView({ stats, userLocation, avatarUrl, recentTransac
 
 const styles = StyleSheet.create({
     scrollContainer: { flex: 1 },
-    heroSection: { paddingTop: 60, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, paddingBottom: 30, marginBottom: 10 },
+    heroSection: { paddingTop: 60, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, paddingBottom: 30, marginBottom: 10, elevation: 8 },
     // Header
     headerContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 10, marginBottom: 10 },
     headerGreeting: { fontSize: 13, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 1 },
@@ -331,7 +331,7 @@ const styles = StyleSheet.create({
     // Grid
     gridContainer: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
     gridItem: { flex: 1, alignItems: 'center', gap: 10 },
-    gridImageBox: { width: '100%', aspectRatio: 1, borderRadius: 16, justifyContent: 'center', alignItems: 'center', overflow: 'hidden', borderWidth: 1, shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
+    gridImageBox: { width: '100%', aspectRatio: 1, borderRadius: 16, justifyContent: 'center', alignItems: 'center', overflow: 'hidden', borderWidth: 1, shadowOpacity: 0.08, shadowRadius: 10, elevation: 4 },
     gridImage: { width: '100%', height: '100%', opacity: 1 },
     gridOverlay: { position: 'absolute', top: 8, right: 8, width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', alignItems: 'center' },
     gridLabel: { fontSize: 12, fontWeight: '700' },
@@ -345,7 +345,7 @@ const styles = StyleSheet.create({
     activityTime: { fontSize: 12, fontWeight: '500', opacity: 0.6 },
     activityBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
     activityPoints: { fontSize: 13, fontWeight: '900' },
-    emptyCard: { padding: 24, borderRadius: 16, alignItems: 'center', marginTop: 10, borderStyle: 'dashed', borderWidth: 1 },
+    emptyCard: { padding: 24, borderRadius: 16, alignItems: 'center', marginTop: 10, borderStyle: 'dashed', borderWidth: 1, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 },
     emptyIconCircle: { width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
     emptyTitle: { fontSize: 17, fontWeight: '900', marginBottom: 6 },
     emptyDescription: { fontSize: 13, lineHeight: 19, textAlign: 'center' },
@@ -366,7 +366,7 @@ const styles = StyleSheet.create({
     ctaTitle: { color: '#fff', fontSize: 20, fontWeight: '900', marginBottom: 4 },
     ctaDescription: { color: 'rgba(255,255,255,0.85)', fontSize: 14, lineHeight: 20 },
     quickActionRow: { flexDirection: 'row', gap: 12, marginTop: 12 },
-    quickAction: { flex: 1, minHeight: 52, borderRadius: 16, borderWidth: 1, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
+    quickAction: { flex: 1, minHeight: 52, borderRadius: 16, borderWidth: 1, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
     quickActionText: { flex: 1, fontSize: 12, fontWeight: '800' },
     manualLink: { alignSelf: 'center', padding: 10 },
     manualLinkText: { fontSize: 14, fontWeight: '700', textDecorationLine: 'underline' }
